@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单智通 - 访问口令</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{ asset_v('css/app.css') }}">
+<style>
+    html, body { height: 100%; }
+    body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    .login-box {
+        width: 340px;
+        padding: 36px 32px 32px;
+        background: #FFFFFF;
+        border: 1px solid var(--border);
+    }
+    .login-brand {
+        font-family: "Smiley Sans", sans-serif;
+        font-size: 1.75rem;
+        letter-spacing: 0.02em;
+        margin: 0 0 6px;
+    }
+    .login-sub {
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+        margin: 0 0 26px;
+    }
+    .login-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 12px;
+        font-size: 0.9375rem;
+        font-family: inherit;
+        color: var(--text);
+        background: #FFFFFF;
+        border: 1px solid var(--border);
+        border-radius: 0;
+        outline: none;
+    }
+    .login-input:focus { border-color: var(--primary); }
+    .login-btn {
+        width: 100%;
+        margin-top: 14px;
+        border-radius: 0;
+    }
+    .login-error {
+        margin: 0 0 14px;
+        padding: 8px 12px;
+        font-size: 0.8125rem;
+        color: var(--danger, #FF4319);
+        background: #FFF3F0;
+        border-left: 3px solid var(--danger, #FF4319);
+    }
+    .login-foot {
+        margin: 22px 0 0;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        line-height: 1.6;
+    }
+</style>
+</head>
+<body>
+    <div class="login-box">
+        <h1 class="login-brand">单智通</h1>
+        <p class="login-sub">外贸单证 AI 审核系统</p>
+
+        {% if error %}
+        <div class="login-error">{{ error }}</div>
+        {% endif %}
+
+        <form method="post" autocomplete="off">
+            <input class="login-input" type="password" name="password" placeholder="请输入访问口令" autofocus required>
+            <button class="btn btn-primary login-btn" type="submit">进入</button>
+        </form>
+
+        <p class="login-foot">口令由部署者设置，写在项目根目录 .env 的 DZT_ACCESS_PASSWORD 里。</p>
+    </div>
+</body>
+</html>

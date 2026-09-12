@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>外贸单证AI审核系统</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231D3AF0'/%3E%3Cpath d='M8 17l6 6 10-12' stroke='%23fff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="/static/css/app.css?v={{ asset_v('css/app.css') }}">
+    <script>
+        // 导航选中态有两档（色块 / 竖条），用户在「设置」里切换。
+        // 必须在首次绘制之前定好，否则会先画成色块、再跳成竖条，闪一下。
+        try {
+            if (localStorage.getItem("dzt_nav_style") === "bar") {
+                document.documentElement.setAttribute("data-nav-style", "bar");
+            }
+        } catch (e) {
+            // 隐私模式下 localStorage 读写会抛异常，忽略即可，用默认的色块
+        }
+    </script>
+</head>
+<body>
+    <div class="app-shell">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <span class="brand-name">单智通</span>
+                <span class="brand-sub">外贸单证AI审核系统</span>
+            </div>
+            <nav class="sidebar-nav">
+                <button type="button" class="tab active" data-tab="home">首页</button>
+                <p class="nav-group-title">单证处理</p>
+                <button type="button" class="tab" data-tab="generate">智能制单</button>
+                <button type="button" class="tab" data-tab="image">上传图片</button>
+                <button type="button" class="tab" data-tab="text">粘贴文字</button>
+                <button type="button" class="tab" data-tab="pdf">上传 PDF</button>
+                <button type="button" class="tab" data-tab="lcreview">信用证体检</button>
+                <button type="button" class="tab" data-tab="compare">多单证对比</button>
+                {% if edition == 'edu' %}
+                <p class="nav-group-title">实训教学</p>
+                <button type="button" class="tab" data-tab="practice">实训练习</button>
+                {% endif %}
+                <p class="nav-group-title">数据管理</p>
+                <button type="button" class="tab" data-tab="history">历史记录</button>
+                <button type="button" class="tab" data-tab="archive">档案管理</button>
+                <p class="nav-group-title">说明与设置</p>
+                <button type="button" class="tab" data-tab="help">功能说明</button>
+                <button type="button" class="tab" data-tab="rules">审核规则</button>
+                <button type="button" class="tab" data-tab="settings">设置</button>
+            </nav>
+
+            <!-- 底部信息块。注意：这里的东西绝不能带 class="tab" 或 data-tab ——
+                 app.js 是 document.querySelectorAll(".tab") 全局抓取，
+                 带上了就会被卷进页签切换逻辑，点一下把工作区清空。 -->
+            <div class="sidebar-foot">
+                <span class="foot-badge">{{ '教育版' if edition == 'edu' else '标准版' }}</span>
+                <p class="foot-line">模型 <span class="foot-mono">{{ runtime.model }}</span></p>
+                <p class="foot-line">审核规则 {{ rule_series[0].count }} 条 · 审证规则 {{ rule_series[1].count }} 条</p>
+                <p class="foot-note">AI 结论仅供参考，以银行审单结论为准</p>
+            </div>
+        </aside>
+        <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+        <!-- Main column -->
+        <div class="app-main">
+            <header class="topbar">
+                <button type="button" class="menu-btn" id="menuBtn" aria-label="打开导航菜单">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <line x1="3" y1="6" x2="21" y2="6"/>
+                        <line x1="3" y1="12" x2="21" y2="12"/>
+                        <line x1="3" y1="18" x2="21" y2="18"/>
+                    </svg>
+                </button>
+                <span class="topbar-brand">单智通</span>
+                <span class="topbar-module" id="topbarModule">当前：首页</span>
+            </header>
+            <main class="content">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <script src="/static/js/marked.min.js"></script>
+    <script src="/static/js/cases.js?v={{ asset_v('js/cases.js') }}"></script>
+    <script src="/static/js/app.js?v={{ asset_v('js/app.js') }}"></script>
+</body>
+</html>

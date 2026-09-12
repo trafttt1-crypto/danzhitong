@@ -1,0 +1,39 @@
+# ===== 绝不能进仓库的 =====
+# 密钥（DeepSeek / 百度）。仓库里只放 .env.example 模板
+.env
+# 审核记录与档案：里面是真实业务数据
+*.db
+# 上传过的单证原件
+uploads/
+
+# ===== 本机专用，别人用不上 =====
+# cloudflared 隧道工具，50 MB+ 的二进制，要用请自行到 Cloudflare 官网下载
+cloudflared.exe
+cloudflared.exe.bak
+# 手机控制 Claude Code 的启动脚本，与本项目无关
+启动Happy.bat
+
+# ===== 开发过程产物 =====
+_backup_*/
+_shot.py
+test_invoice.png
+test_export.pdf
+static/shot-home.png
+*.log
+# 开发期间随手截的调试图（39 张中间状态）。给 README 用的精修图在 docs/images/
+screenshots/
+# 编辑器 / 助手工具的本地配置，与本项目无关
+.claude/
+
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ===== 编辑器与系统 =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
