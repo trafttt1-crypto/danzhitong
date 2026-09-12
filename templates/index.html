@@ -1,0 +1,1173 @@
+{% extends "base.html" %}
+
+{% block content %}
+        <!-- ===== Tab 0: Home（总控智能助手） ===== -->
+        <section class="tab-content active" id="tabHome">
+            <div class="chat-head">
+                <span class="chat-head-title">总控助手</span>
+                <div class="chat-head-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" id="btnChatNew">新对话</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btnChatClear" style="margin-left:8px">清空对话</button>
+                </div>
+            </div>
+            <div class="chat-main">
+                <aside class="chat-threads" id="chatThreads"></aside>
+                <div class="chat-col">
+                    <div class="chat-scroll" id="chatScroll">
+                        <div class="chat-empty" id="chatEmpty">
+                            <h1 class="home-title rise" id="homeTitle">今天想审点什么？</h1>
+                            <p class="home-sub rise rise-2" id="homeSub">问我系统里的事：审了多少、错了几个、发现了哪些问题</p>
+                        </div>
+                        <div class="chat-list" id="chatList"></div>
+                    </div>
+                    <form class="home-composer" id="homeComposer">
+                        <textarea id="homeInput" rows="1" placeholder="问我：今天审了几份？发现了哪些问题？" autocomplete="off"></textarea>
+                        <button type="submit" class="home-send" aria-label="发送">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="19" x2="12" y2="5"/>
+                                <polyline points="5 12 12 5 19 12"/>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== Tab 1: Image Upload ===== -->
+        <section class="tab-content" id="tabImage">
+            <div class="upload-area" id="uploadAreaImage" tabindex="0" role="button" aria-label="选择图片文件上传">
+                <div class="upload-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#8A8A85" stroke-width="1.5">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                </div>
+                <p class="upload-text">拖拽图片到此处，或 <span class="browse-link">点击浏览</span></p>
+                <p class="upload-hint">支持 JPG、PNG 格式，单张不超过 10MB</p>
+                <input type="file" id="fileInputImage" accept=".jpg,.jpeg,.png" hidden>
+            </div>
+            <div class="preview-area" id="previewAreaImage" style="display:none">
+                <img id="previewImage" alt="preview">
+                <div class="preview-actions">
+                    <button class="btn btn-secondary" id="btnReselectImage">重新选择</button>
+                    <button class="btn btn-primary" id="btnAuditImage">开始审核</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== Tab 2: Text Input ===== -->
+        <section class="tab-content" id="tabText">
+            <div class="text-input-area">
+                {% if edition == 'edu' %}
+                <p class="text-input-hint">将单证文字内容粘贴到下方，或载入教学案例练习（报关单、发票、装箱单等）</p>
+                <div class="case-row" id="caseRow">
+                    <span class="case-row-label">教学案例</span>
+                    <button type="button" class="btn btn-secondary btn-sm case-btn" data-case="0">商业发票（含错误）</button>
+                    <button type="button" class="btn btn-secondary btn-sm case-btn" data-case="1">装箱单（含错误）</button>
+                    <button type="button" class="btn btn-secondary btn-sm case-btn" data-case="2">商业发票（规范样板）</button>
+                </div>
+                {% else %}
+                <p class="text-input-hint">将单证文字内容粘贴到下方，或载入示例单证快速试用（报关单、发票、装箱单等）</p>
+                <div class="case-row" id="caseRow">
+                    <span class="case-row-label">示例单证</span>
+                    <button type="button" class="btn btn-secondary btn-sm case-btn" data-case="0">商业发票（含常见错误）</button>
+                    <button type="button" class="btn btn-secondary btn-sm case-btn" data-case="1">装箱单（含常见错误）</button>
+                    <button type="button" class="btn btn-secondary btn-sm case-btn" data-case="2">商业发票（规范样板）</button>
+                </div>
+                {% endif %}
+                <textarea id="textInput" placeholder="请粘贴单证文字内容...&#10;&#10;例如：&#10;商业发票&#10;发票号：INV-2024-001&#10;日期：2024-01-15&#10;发货人：XXXX CO., LTD.&#10;..."></textarea>
+                <div class="text-actions">
+                    <button class="btn btn-secondary" id="btnClearText">清空</button>
+                    <button class="btn btn-primary" id="btnAuditText">开始审核</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== Tab 3: PDF Upload ===== -->
+        <section class="tab-content" id="tabPdf">
+            <div class="upload-area" id="uploadAreaPdf" tabindex="0" role="button" aria-label="选择PDF文件上传">
+                <div class="upload-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#8A8A85" stroke-width="1.5">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                        <polyline points="10 9 9 9 8 9"/>
+                    </svg>
+                </div>
+                <p class="upload-text">拖拽PDF到此处，或 <span class="browse-link">点击浏览</span></p>
+                <p class="upload-hint">支持 PDF 格式，不超过 10MB</p>
+                <input type="file" id="fileInputPdf" accept=".pdf" hidden>
+            </div>
+            <div class="preview-area" id="previewAreaPdf" style="display:none">
+                <div class="pdf-preview-info">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <span id="pdfFileName"></span>
+                </div>
+                <div class="preview-actions">
+                    <button class="btn btn-secondary" id="btnReselectPdf">重新选择</button>
+                    <button class="btn btn-primary" id="btnAuditPdf">开始审核</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== Tab: LC Review (信用证体检) ===== -->
+        <section class="tab-content" id="tabLcreview">
+            <div class="page-intro">
+                <h2 class="page-title">信用证体检</h2>
+                <p class="page-sub">收到信用证先做这一步。软条款、时间陷阱、单据要求里的坑，单据做得再完美也补不回来——只有审信用证本身才看得出来。</p>
+            </div>
+
+            <div class="gen-card">
+                <div class="gen-card-head">
+                    <span class="gen-card-title">信用证原文</span>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btnLcReviewUpload">上传 LC 文件</button>
+                </div>
+                <textarea id="lcReviewInput" class="lc-review-textarea" placeholder="粘贴信用证原文或 MT700 报文...&#10;&#10;例如：&#10;40A: IRREVOCABLE&#10;31D: DATE 261015 PLACE CHINA&#10;32B: USD 100,000.00&#10;44C: LATEST SHIPMENT 260915&#10;46A: ..."></textarea>
+                <input type="file" id="lcReviewFile" accept=".jpg,.jpeg,.png,.pdf" hidden>
+                <div class="lc-review-file" id="lcReviewFileInfo" style="display:none">
+                    <span id="lcReviewFileName"></span>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btnLcReviewFileClear">取消</button>
+                </div>
+                <div class="gen-actions">
+                    <button type="button" class="btn btn-secondary" id="btnLcReviewClear">清空</button>
+                    <button type="button" class="btn btn-primary" id="btnLcReviewRun">开始体检</button>
+                </div>
+            </div>
+
+            <div class="gen-card" id="lcDeadlinePanel">
+                <div class="gen-card-head">
+                    <span class="gen-card-title">交单时间表</span>
+                    <span class="panel-note">本地计算，不消耗 AI 额度</span>
+                </div>
+                <div class="lc-deadline-form">
+                    <div class="lc-field">
+                        <label for="dlShipment">最迟装运日</label>
+                        <input type="text" id="dlShipment" placeholder="例：2026-09-15">
+                    </div>
+                    <div class="lc-field">
+                        <label for="dlExpiry">信用证效期</label>
+                        <input type="text" id="dlExpiry" placeholder="例：2026-10-15">
+                    </div>
+                    <div class="lc-field">
+                        <label for="dlDays">交单期（天）</label>
+                        <input type="number" id="dlDays" value="21" min="1" max="365">
+                    </div>
+                    <div class="lc-field">
+                        <label for="dlMailing">寄单在途（天）</label>
+                        <input type="number" id="dlMailing" value="5" min="0" max="60">
+                    </div>
+                </div>
+                <div class="lc-deadline-result" id="lcDeadlineResult">
+                    <p class="lc-deadline-empty">填写装运日或效期，自动算出最迟交单日</p>
+                </div>
+            </div>
+
+            <div class="result-section" id="lcReviewResult" style="display:none">
+                <div class="result-card">
+                    <div class="result-header">
+                        <h2>体检报告</h2>
+                        <div class="result-header-actions">
+                            <button type="button" class="btn btn-primary btn-sm" id="btnLcFillForm">填入审单表单</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btnLcReviewPdf">导出PDF</button>
+                        </div>
+                    </div>
+                    <div class="result-body" id="lcReviewBody"></div>
+                    <details class="ocr-raw">
+                        <summary>查看信用证原文</summary>
+                        <pre id="lcReviewRawText"></pre>
+                    </details>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== Tab 4: History ===== -->
+        <section class="tab-content" id="tabHistory">
+            <div class="history-search">
+                <input type="text" id="historySearch" placeholder="搜索发票号/输入摘要..." oninput="filterHistory()">
+                <input type="date" id="historyDateFrom" onchange="filterHistory()" title="开始日期">
+                <input type="date" id="historyDateTo" onchange="filterHistory()" title="结束日期">
+                <button class="btn btn-secondary btn-sm" id="btnHistoryClearSearch" onclick="clearHistorySearch()">清空搜索</button>
+                <button class="btn btn-danger btn-sm" id="btnHistoryClearAll">清空全部记录</button>
+            </div>
+            <div class="history-list" id="historyList">
+                <p class="history-empty" id="historyEmpty">暂无审核记录</p>
+            </div>
+            <div class="history-pager" id="historyPager" style="display:none">
+                <span id="pagerInfo"></span>
+                <button class="btn btn-secondary btn-sm" id="pagerPrev" onclick="loadHistory(_historyPage - 1)">上一页</button>
+                <button class="btn btn-secondary btn-sm" id="pagerNext" onclick="loadHistory(_historyPage + 1)">下一页</button>
+            </div>
+            <div class="history-detail" id="historyDetail" style="display:none">
+                <div class="history-detail-header">
+                    <button class="btn btn-secondary btn-sm" id="btnHistoryBack">返回列表</button>
+                    <div>
+                        <button class="btn btn-primary btn-sm" id="btnHistoryExportPdf">导出PDF</button>
+                        <button class="btn btn-secondary btn-sm" id="btnHistoryExportDiscrepancy" style="margin-left:8px">导不符点清单</button>
+                        <button class="btn btn-sm btn-danger" id="btnHistoryDelete" style="margin-left:8px">删除</button>
+                    </div>
+                </div>
+                <div class="result-body" id="historyDetailBody"></div>
+                <details class="ocr-raw">
+                    <summary>查看输入/OCR 原始文字</summary>
+                    <pre id="historyOcrText"></pre>
+                </details>
+            </div>
+        </section>
+
+        <!-- ===== Tab 5: Multi-Doc Comparison ===== -->
+        <section class="tab-content" id="tabCompare">
+            <div class="compare-container">
+                <!-- Column A -->
+                <div class="compare-column">
+                    <div class="compare-column-header">
+                        <span class="compare-label">单证A</span>
+                        <span class="compare-label-desc">（如商业发票）</span>
+                        <div class="compare-mini-tabs">
+                            <button class="mini-tab active" data-side="a" data-mode="text">粘贴文字</button>
+                            <button class="mini-tab" data-side="a" data-mode="image">上传文件</button>
+                        </div>
+                    </div>
+                    <!-- A: Text -->
+                    <div class="compare-input-area active" id="compareAText">
+                        <textarea class="compare-textarea" id="textA" placeholder="请粘贴单证A的文字内容..."></textarea>
+                    </div>
+                    <!-- A: Image -->
+                    <div class="compare-input-area" id="compareAImage">
+                        <div class="compare-upload" id="uploadAreaA" tabindex="0" role="button" aria-label="选择单证A文件">
+                            <div class="upload-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8A8A85" stroke-width="1.5">
+                                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                                    <polyline points="17 8 12 3 7 8"/>
+                                    <line x1="12" y1="3" x2="12" y2="15"/>
+                                </svg>
+                            </div>
+                            <p class="upload-text" style="font-size:13px">点击或拖拽上传</p>
+                            <p class="upload-hint" style="font-size:11px">支持 JPG、PNG、PDF</p>
+                            <input type="file" id="fileInputA" accept=".jpg,.jpeg,.png,.pdf" hidden>
+                        </div>
+                        <div class="compare-preview" id="previewA" style="display:none">
+                            <span id="previewNameA"></span>
+                            <button class="btn btn-secondary btn-sm" id="btnResetA">重选</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column B -->
+                <div class="compare-column">
+                    <div class="compare-column-header">
+                        <span class="compare-label">单证B</span>
+                        <span class="compare-label-desc">（如装箱单）</span>
+                        <div class="compare-mini-tabs">
+                            <button class="mini-tab active" data-side="b" data-mode="text">粘贴文字</button>
+                            <button class="mini-tab" data-side="b" data-mode="image">上传文件</button>
+                        </div>
+                    </div>
+                    <!-- B: Text -->
+                    <div class="compare-input-area active" id="compareBText">
+                        <textarea class="compare-textarea" id="textB" placeholder="请粘贴单证B的文字内容..."></textarea>
+                    </div>
+                    <!-- B: Image -->
+                    <div class="compare-input-area" id="compareBImage">
+                        <div class="compare-upload" id="uploadAreaB" tabindex="0" role="button" aria-label="选择单证B文件">
+                            <div class="upload-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#8A8A85" stroke-width="1.5">
+                                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                                    <polyline points="17 8 12 3 7 8"/>
+                                    <line x1="12" y1="3" x2="12" y2="15"/>
+                                </svg>
+                            </div>
+                            <p class="upload-text" style="font-size:13px">点击或拖拽上传</p>
+                            <p class="upload-hint" style="font-size:11px">支持 JPG、PNG、PDF</p>
+                            <input type="file" id="fileInputB" accept=".jpg,.jpeg,.png,.pdf" hidden>
+                        </div>
+                        <div class="compare-preview" id="previewB" style="display:none">
+                            <span id="previewNameB"></span>
+                            <button class="btn btn-secondary btn-sm" id="btnResetB">重选</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="compare-actions">
+                <button class="btn btn-primary" id="btnCompare">开始对比</button>
+            </div>
+
+            <!-- Compare Result -->
+            <div class="compare-result" id="compareResult" style="display:none">
+                <div class="result-card">
+                    <div class="result-header">
+                        <h2>对比报告</h2>
+                        <div class="result-header-actions">
+                            <button class="btn btn-primary btn-sm" id="btnCompareExportPdf">导出PDF</button>
+                            <button class="btn btn-secondary btn-sm" id="btnCompareNew">新建对比</button>
+                        </div>
+                    </div>
+                    <div class="result-body" id="compareResultBody"></div>
+                    <details class="ocr-raw">
+                        <summary>查看双方原始文字</summary>
+                        <pre id="compareRawText"></pre>
+                    </details>
+                </div>
+            </div>
+        </section>
+
+        {% if edition == 'edu' %}
+        {# 作答和出题两处都要一份可勾选的规则清单。只渲染 编号+名称+严重度，
+           绝不渲染 check/fix —— 那是答案本身。 #}
+        {% macro practice_picker(picker_id) %}
+        <div id="{{ picker_id }}">
+            {% for series in rule_series %}{% if series.prefix.startswith('R') %}
+            {% for group in series.groups %}
+            <div class="rules-group">
+                <p class="rules-group-title">{{ group.category }}</p>
+                {% for r in group.rules %}
+                <label class="rule-item practice-pick"
+                       data-rule-id="{{ r.id }}"
+                       data-scope="{{ r.scope }}"
+                       data-rule-text="{{ r.id }} {{ r.name }} {{ r.severity_cn }} {{ group.category }}">
+                    <input type="checkbox" class="practice-check" value="{{ r.id }}">
+                    <span class="practice-pick-body">
+                        <span class="rule-head">
+                            <span class="rpt-tag rpt-rule">{{ r.id }}</span>
+                            <span class="rule-name">{{ r.name }}</span>
+                            <span class="rpt-tag rpt-sev rpt-sev-{{ r.severity }}">{{ r.severity_cn }}</span>
+                            <span class="rule-scope" data-scope-when="lc">需信用证条款</span>
+                            <span class="rule-scope" data-scope-when="pair">需两份以上单证</span>
+                        </span>
+                    </span>
+                </label>
+                {% endfor %}
+            </div>
+            {% endfor %}
+            {% endif %}{% endfor %}
+        </div>
+        {% endmacro %}
+
+        <!-- ===== Tab: 实训练习（仅教育版）=====
+             与「粘贴文字」的区别：那边贴进去就给答案，这边要学生先自己找，
+             提交后才判卷。练习的价值全在这个顺序上。 -->
+        <section class="tab-content" id="tabPractice">
+            <div class="page-intro">
+                <h2 class="page-title">实训练习</h2>
+                <p class="page-sub">
+                    先自己找错，再对答案。系统不会直接告诉你哪儿有问题——
+                    读单据、勾出你判断有问题的地方，提交后才知道对了几处、漏了几处、多报了几处。
+                </p>
+            </div>
+
+            <!-- 态一：题目列表 -->
+            <div id="practiceListView">
+                <div class="gen-card">
+                    <div class="gen-card-head">
+                        <span class="gen-card-title">题目列表</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnPracticeNew">出题</button>
+                    </div>
+                    <div class="practice-cases" id="practiceCaseList"></div>
+                    <p class="practice-empty" id="practiceEmpty" style="display:none">题库是空的，点右上角「出题」自己加一道。</p>
+                </div>
+            </div>
+
+            <!-- 态二：作答 -->
+            <div id="practiceAnswerView" style="display:none">
+                <div class="gen-card">
+                    <div class="gen-card-head">
+                        <span class="gen-card-title" id="practiceCaseTitle">题目</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnPracticeBack">返回列表</button>
+                    </div>
+                    <p class="practice-hint" id="practiceCaseHint"></p>
+                    <pre class="practice-doc" id="practiceDocText"></pre>
+                </div>
+
+                <div class="gen-card">
+                    <div class="gen-card-head">
+                        <span class="gen-card-title">选出你认为有问题的地方</span>
+                        <span class="panel-note" id="practiceAnswerCount"></span>
+                    </div>
+                    <p class="practice-tip">
+                        下面列的是本题可能用到的规则。看单据，勾出被违反的那些——
+                        <b>没勾满不扣分，勾错要扣分</b>，所以不确定的别乱勾。
+                    </p>
+                    <div class="rules-filter">
+                        <input type="text" id="practiceFilter" placeholder="按编号或关键词筛选，例如 R01、金额、重量">
+                        <span class="rules-count" id="practiceFilterCount"></span>
+                    </div>
+                    {{ practice_picker('practiceRulePicker') }}
+                    <p class="rules-empty" id="practiceRuleEmpty" style="display:none">没有匹配的规则，请更换关键词。</p>
+                </div>
+
+                <div class="gen-actions">
+                    <button type="button" class="btn btn-secondary" id="btnPracticeClear">清空勾选</button>
+                    <button type="button" class="btn btn-primary" id="btnPracticeSubmit">提交作答</button>
+                </div>
+            </div>
+
+            <!-- 态三：判卷结果 -->
+            <div id="practiceResultView" style="display:none">
+                <div class="gen-card">
+                    <div class="gen-card-head">
+                        <span class="gen-card-title">判卷结果</span>
+                        <div class="result-header-actions">
+                            <button type="button" class="btn btn-secondary btn-sm" id="btnPracticeRetry">再做一次</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btnPracticeResultBack">返回列表</button>
+                        </div>
+                    </div>
+                    <div class="practice-score-row">
+                        <div class="practice-score" id="practiceScore">0</div>
+                        <div class="practice-score-meta">
+                            <p class="practice-score-line" id="practiceScoreLine"></p>
+                            <p class="practice-score-note">
+                                计分规则：找出得越多越好，多报要扣分。得分 =（找对 − 多报）÷ 应找处数。
+                                全勾一遍不会得高分，这一点和银行审单一样——误报不符点同样不专业。
+                            </p>
+                        </div>
+                    </div>
+                    <div class="practice-tally" id="practiceTally"></div>
+                </div>
+
+                <div class="gen-card">
+                    <div class="gen-card-head">
+                        <span class="gen-card-title">逐条讲解</span>
+                        <span class="panel-note">依据 UCP600 / ISBP 与实务惯例</span>
+                    </div>
+                    <div id="practiceExplain"></div>
+                </div>
+            </div>
+
+            <!-- 态四：出题 -->
+            <div id="practiceCreateView" style="display:none">
+                <div class="gen-card">
+                    <div class="gen-card-head">
+                        <span class="gen-card-title">出题</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnPracticeCreateCancel">取消</button>
+                    </div>
+                    <p class="practice-tip">
+                        贴一份含错的单据，点「生成答案初稿」让系统跑一遍审核。
+                        <b>初稿只是起点，不能直接当答案。</b>实测下来它两个毛病都有：偏多
+                        ——把提示级的风险也一并列进来，一份只错一处的单据可能给出近十条建议；
+                        也偏漏——个别显而易见的错误反而不在里面。保存前请对着「审核规则」页逐条过一遍。
+                    </p>
+                    <div class="gen-field practice-field">
+                        <label for="practiceNewTitle">题目标题</label>
+                        <input type="text" id="practiceNewTitle" placeholder="例：商业发票 INV-2026-0312（找不符点）">
+                    </div>
+                    <div class="gen-field practice-field">
+                        <label for="practiceNewHint">提示语（可选，显示给学生）</label>
+                        <input type="text" id="practiceNewHint" placeholder="例：四处错误分属不同类别，一处一处核">
+                    </div>
+                    <div class="gen-field practice-field">
+                        <label for="practiceNewDoc">单据原文</label>
+                        <textarea id="practiceNewDoc" rows="12" placeholder="把单据内容粘贴到这里"></textarea>
+                    </div>
+                    <div class="gen-actions">
+                        <button type="button" class="btn btn-secondary" id="btnPracticeDraft">生成答案初稿</button>
+                    </div>
+                </div>
+
+                <div class="gen-card">
+                    <div class="gen-card-head">
+                        <span class="gen-card-title">标准答案</span>
+                        <span class="panel-note" id="practiceDraftNote">勾选本题的正确答案，可随时增删</span>
+                    </div>
+                    {{ practice_picker('practiceAnswerPicker') }}
+                </div>
+
+                <div class="gen-actions">
+                    <button type="button" class="btn btn-primary" id="btnPracticeSave">保存题目</button>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- ===== Tab 6: Smart Document Generation ===== -->
+        <section class="tab-content" id="tabGenerate">
+            <div class="gen-form">
+                <div class="gen-form-grid">
+                    <!-- Row 1: Basic Info -->
+                    <div class="gen-field">
+                        <label>发票号 Invoice No *</label>
+                        <input type="text" id="genInvoiceNo" placeholder="例：INV-2024-001">
+                    </div>
+                    <div class="gen-field">
+                        <label>日期 Date *</label>
+                        <input type="date" id="genDate">
+                    </div>
+                    <div class="gen-field">
+                        <label>贸易术语 Trade Terms</label>
+                        <select id="genTradeTerms">
+                            <option value="EXW">EXW - 工厂交货</option>
+                            <option value="FCA">FCA - 货交承运人</option>
+                            <option value="FAS">FAS - 船边交货</option>
+                            <option value="FOB">FOB - 船上交货</option>
+                            <option value="CFR">CFR - 成本加运费</option>
+                            <option value="CIF" selected>CIF - 成本、保险费加运费</option>
+                            <option value="CPT">CPT - 运费付至</option>
+                            <option value="CIP">CIP - 运费、保险费付至</option>
+                            <option value="DAP">DAP - 目的地交货</option>
+                            <option value="DPU">DPU - 目的地卸货后交货</option>
+                            <option value="DDP">DDP - 完税后交货</option>
+                        </select>
+                    </div>
+                    <div class="gen-field">
+                        <label>付款方式 Payment</label>
+                        <select id="genPayment">
+                            <option value="T/T">T/T</option>
+                            <option value="L/C">L/C</option>
+                            <option value="D/P">D/P</option>
+                            <option value="D/A">D/A</option>
+                        </select>
+                    </div>
+
+                    <!-- Row 2: Shipper -->
+                    <div class="gen-field gen-field-wide">
+                        <label>发货人/出口商 Shipper/Exporter</label>
+                        <input type="text" id="genShipperName" placeholder="公司名称">
+                    </div>
+                    <div class="gen-field gen-field-wide">
+                        <input type="text" id="genShipperAddr" placeholder="地址">
+                    </div>
+
+                    <!-- Row 3: Consignee -->
+                    <div class="gen-field gen-field-wide">
+                        <label>收货人/进口商 Consignee/Importer</label>
+                        <input type="text" id="genConsigneeName" placeholder="公司名称">
+                    </div>
+                    <div class="gen-field gen-field-wide">
+                        <input type="text" id="genConsigneeAddr" placeholder="地址">
+                    </div>
+
+                    <!-- Row 4: Shipping Mark -->
+                    <div class="gen-field gen-field-wide">
+                        <label>唛头/Shipping Mark（默认发票号，可修改）</label>
+                        <textarea id="genShippingMark" rows="2" placeholder="例：INV-2024-001&#10;C/NO.1-50&#10;MADE IN CHINA"></textarea>
+                    </div>
+
+                    <!-- Row 5: Transport -->
+                    <div class="gen-field">
+                        <label>装运港 Port of Loading</label>
+                        <input type="text" id="genPortLoading" placeholder="例：SHANGHAI, CHINA">
+                    </div>
+                    <div class="gen-field">
+                        <label>目的港 Port of Discharge</label>
+                        <input type="text" id="genPortDischarge" placeholder="例：NEW YORK, USA">
+                    </div>
+                </div>
+
+                <!-- Goods Table -->
+                <div class="gen-goods-section">
+                    <div class="gen-goods-header">
+                        <span>货物明细 Goods Details</span>
+                        <button class="btn btn-primary btn-sm" id="btnAddRow">+ 添加行</button>
+                    </div>
+                    <table class="gen-goods-table" id="goodsTable">
+                        <thead>
+                            <tr>
+                                <th style="width:22%">品名 Description</th>
+                                <th>数量 Qty</th>
+                                <th>单位 Unit</th>
+                                <th>单价(USD) U/Price</th>
+                                <th>金额(USD) Amount</th>
+                                <th>件数 PKGS</th>
+                                <th>毛重(KG) G.W.</th>
+                                <th>净重(KG) N.W.</th>
+                                <th>体积(CBM)</th>
+                                <th style="width:36px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="goodsTbody">
+                            <tr class="goods-row">
+                                <td><input type="text" class="goods-name" placeholder="品名"></td>
+                                <td><input type="number" class="goods-qty" value="0" min="0" onchange="recalcAll()"></td>
+                                <td><input type="text" class="goods-unit" value="PCS" style="width:60px"></td>
+                                <td><input type="number" class="goods-price" value="0.00" step="0.01" min="0" onchange="recalcAll()"></td>
+                                <td><span class="goods-amount">0.00</span></td>
+                                <td><input type="number" class="goods-pkgs" value="0" min="0" style="width:64px"></td>
+                                <td><input type="number" class="goods-gw" value="0" step="0.1" min="0" style="width:72px"></td>
+                                <td><input type="number" class="goods-nw" value="0" step="0.1" min="0" style="width:72px"></td>
+                                <td><input type="number" class="goods-cbm" value="0" step="0.01" min="0" style="width:72px"></td>
+                                <td><button class="btn btn-secondary btn-sm btn-del-row" onclick="removeGoodsRow(this)">✕</button></td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="4" style="text-align:right;font-weight:600">Sub Total</td>
+                                <td><span id="genSubTotal">0.00</span></td>
+                                <td colspan="5"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <!-- Freight & Total -->
+                <div class="gen-form-grid" style="margin-top:16px">
+                    <div class="gen-field">
+                        <label>运费 Freight (USD)</label>
+                        <input type="number" id="genFreight" value="0.00" step="0.01" min="0" onchange="recalcAll()">
+                    </div>
+                    <div class="gen-field">
+                        <label>总金额 Grand Total (USD)</label>
+                        <input type="text" id="genGrandTotal" readonly>
+                    </div>
+                    <div class="gen-field gen-field-wide">
+                        <label>大写金额 Amount in Words</label>
+                        <input type="text" id="genAmountWords" readonly placeholder="自动生成">
+                    </div>
+                </div>
+
+                <!-- Remarks -->
+                <div class="gen-form-grid" style="margin-top:16px">
+                    <div class="gen-field gen-field-wide">
+                        <label>发票备注 Invoice Remarks（可选）</label>
+                        <textarea id="genInvoiceRemarks" rows="2" placeholder="例：THIS SHIPMENT DOES NOT CONTAIN SOLID WOOD PACKING MATERIAL"></textarea>
+                    </div>
+                    <div class="gen-field gen-field-wide">
+                        <label>装箱单备注 Packing List Remarks（可选）</label>
+                        <textarea id="genPlRemarks" rows="2" placeholder="例：PACKED IN EXPORT STANDARD CARTONS"></textarea>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="gen-actions">
+                    <button class="btn btn-primary" id="btnGenerate">生成单证并审核</button>
+                    <button class="btn btn-secondary" id="btnGenReset">重置表单</button>
+                </div>
+            </div>
+
+            <!-- Generate Result -->
+            <div class="gen-result" id="genResult" style="display:none">
+                <div class="result-card">
+                    <div class="result-header">
+                        <h2>生成结果 & 审核报告</h2>
+                        <div class="result-header-actions">
+                            <button class="btn btn-primary btn-sm" id="btnGenExportPdf">导出PDF</button>
+                            <button class="btn btn-secondary btn-sm" id="btnGenNew">重新制单</button>
+                        </div>
+                    </div>
+                    <div class="result-body">
+                        <div class="gen-docs-display">
+                            <div class="gen-doc-pane">
+                                <h3>商业发票</h3>
+                                <div id="genInvoiceDisplay" class="gen-doc-display"></div>
+                            </div>
+                            <div class="gen-doc-pane">
+                                <h3>装箱单</h3>
+                                <div id="genPLDisplay" class="gen-doc-display"></div>
+                            </div>
+                        </div>
+                        <h3 style="margin-top:20px">审核报告</h3>
+                        <div id="genAuditDisplay"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== Tab 7: Archive Management ===== -->
+        <section class="tab-content" id="tabArchive">
+            <!-- Stats Panel -->
+            <div class="archive-stats" id="archiveStats">
+                <div class="archive-stat-card">
+                    <div class="stat-value" id="statMonthCount">0</div>
+                    <div class="stat-label">本月处理</div>
+                </div>
+                <div class="archive-stat-card">
+                    <div class="stat-value" id="statMonthErrors">0</div>
+                    <div class="stat-label">本月发现问题</div>
+                </div>
+                <div class="archive-stat-card">
+                    <div class="stat-value" id="statTotalCount">0</div>
+                    <div class="stat-label">累计处理</div>
+                </div>
+                <div class="archive-stat-card">
+                    <div class="stat-value" id="statTotalAmount">0</div>
+                    <div class="stat-label">累计金额(USD)</div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="archive-filters">
+                <input type="text" id="archiveSearch" placeholder="发票号..." oninput="loadArchive()">
+                <input type="text" id="archiveShipper" placeholder="发货人..." oninput="loadArchive()">
+                <input type="text" id="archiveConsignee" placeholder="收货人..." oninput="loadArchive()">
+                <input type="date" id="archiveDateFrom" onchange="loadArchive()" title="开始日期">
+                <input type="date" id="archiveDateTo" onchange="loadArchive()" title="结束日期">
+                <select id="archiveOpType" onchange="loadArchive()">
+                    <option value="">全部类型</option>
+                    <option value="智能制单">智能制单</option>
+                    <option value="上传审核">上传审核</option>
+                </select>
+                <button class="btn btn-primary btn-sm" id="btnArchiveExport">导出Excel</button>
+                <button class="btn btn-danger btn-sm" id="btnArchiveClear">清空</button>
+            </div>
+
+            <!-- Table -->
+            <div class="archive-table-wrap">
+                <table class="archive-table" id="archiveTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="invoice_no">发票号 ▾</th>
+                            <th>单证类型</th>
+                            <th>发货人</th>
+                            <th>收货人</th>
+                            <th>货物品名</th>
+                            <th class="sortable" data-sort="total_amount">金额 ▾</th>
+                            <th class="sortable" data-sort="created_at">时间 ▾</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="archiveTbody">
+                        <tr><td colspan="8" class="archive-empty">暂无档案记录</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Detail Modal -->
+            <div class="archive-detail" id="archiveDetail" style="display:none">
+                <div class="result-card">
+                    <div class="result-header">
+                        <h2>档案详情</h2>
+                        <div>
+                            <button class="btn btn-primary btn-sm" id="btnArchiveReExport">重新导出PDF</button>
+                            <button class="btn btn-sm btn-danger" id="btnArchiveDelete" style="margin-left:8px">删除</button>
+                            <button class="btn btn-secondary btn-sm" id="btnArchiveBack" style="margin-left:8px">返回列表</button>
+                        </div>
+                    </div>
+                    <div class="result-body" id="archiveDetailBody"></div>
+                    <details class="ocr-raw">
+                        <summary>查看原始文字</summary>
+                        <pre id="archiveOcrText"></pre>
+                    </details>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== Tab: 审核规则 ===== -->
+        <section class="tab-content" id="tabRules">
+            <div class="page-intro">
+                <h2 class="page-title">审核规则</h2>
+                <p class="page-sub">
+                    本系统的全部审核依据。审核报告里出现的规则编号（如 R31、L12）都可以在这里查到对应的判据与修改要求。
+                    报告中的徽标与此页样式一致，便于对照。
+                </p>
+            </div>
+
+            <div class="gen-card">
+                <div class="rules-filter">
+                    <input type="text" id="rulesFilter" placeholder="按编号或关键词筛选，例如 R31、金额、信用证、装运、软条款">
+                    <span class="rules-count" id="rulesCount"></span>
+                </div>
+            </div>
+
+            {% for series in rule_series %}
+            <div class="rules-series">
+                <div class="rules-series-head">
+                    <h3>{{ series.title }}</h3>
+                    <span class="rules-series-count">{{ series.prefix }} · 共 {{ series.count }} 条</span>
+                </div>
+                {% for group in series.groups %}
+                <div class="rules-group">
+                    <p class="rules-group-title">{{ group.category }}</p>
+                    {% for r in group.rules %}
+                    <div class="rule-item"
+                         data-rule-text="{{ r.id }} {{ r.name }} {{ r.severity_cn }} {{ r.basis }} {{ r.check }} {{ r.fix }} {{ group.category }}">
+                        <div class="rule-head">
+                            <span class="rpt-tag rpt-rule">{{ r.id }}</span>
+                            <span class="rule-name">{{ r.name }}</span>
+                            <span class="rpt-tag rpt-sev rpt-sev-{{ r.severity }}">{{ r.severity_cn }}</span>
+                            {% if r.scope_note %}<span class="rule-scope">{{ r.scope_note }}</span>{% endif %}
+                        </div>
+                        <p class="rule-line"><span class="rule-label">依据</span>{{ r.basis }}</p>
+                        <p class="rule-line"><span class="rule-label">查</span>{{ r.check }}</p>
+                        <p class="rule-line"><span class="rule-label">改</span>{{ r.fix }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+
+            <p class="rules-empty" id="rulesEmpty" style="display:none">没有匹配的规则，请更换关键词。</p>
+        </section>
+
+        <!-- ===== Tab: 功能说明 ===== -->
+        <section class="tab-content" id="tabHelp">
+            <div class="page-intro">
+                <h2 class="page-title">功能说明</h2>
+                <p class="page-sub">本系统的业务定位、作业流程、各功能模块的输入与产出，以及审核方法所依据的规则体系与适用边界。</p>
+            </div>
+
+            <div class="doc-card">
+                <h3 class="doc-h3">一、系统定位</h3>
+                <p class="doc-p">
+                    单智通是一套面向出口企业的外贸单证智能审核系统。其核心职能，是在货物出运前后，对商业发票、装箱单、提单等单据，
+                    以及信用证文本本身，实施条款级的合规性审查，识别其中可能导致银行拒付、清关受阻或货款损失的风险点，
+                    并给出可执行的修改意见。
+                </p>
+                <p class="doc-p">
+                    系统的适用对象为出口企业的单证员与外贸业务员，以及承担单证教学任务的职业院校师生。
+                    系统不替代银行审单，亦不替代人工复核，其输出构成正式交单之前的自查环节。
+                </p>
+
+                <h3 class="doc-h3">二、作业流程</h3>
+                <p class="doc-p">系统覆盖出口单证作业的四个阶段，各阶段在信用证结算方式下依次衔接：</p>
+                <ol class="doc-list">
+                    <li>
+                        <b>审证</b>——收到信用证后，对信用证文本本身实施审查，识别软条款、时间条款冲突与单据要求缺陷，
+                        形成改证意见。此阶段位于生产与订舱安排之前，是控制后续风险的前提。
+                    </li>
+                    <li>
+                        <b>制单</b>——依据合同与信用证条款生成商业发票与装箱单。金额合计、英文大写金额、件重尺汇总
+                        由系统按确定性规则计算，不经模型推算。
+                    </li>
+                    <li>
+                        <b>交单前自审</b>——对拟交单的单据实施审核，比对单据与信用证条款之间、单据与单据之间的一致性，
+                        形成不符点清单。这是银行审单之前最后一道自查。
+                    </li>
+                    <li>
+                        <b>归档</b>——将审核记录与从中提取的关键字段沉淀为可检索的档案，用于后续查询、统计与追溯。
+                    </li>
+                </ol>
+
+                <h3 class="doc-h3">三、功能模块</h3>
+                <dl class="doc-dl">
+                    <dt>信用证体检</dt>
+                    <dd>
+                        即实务中的“审证”。输入信用证原文（MT700 报文文本，或信用证的图片、PDF 扫描件），
+                        依据软条款、时间三要素、单据要求、金额与费用、信用证性质五类判据逐条审查，
+                        输出风险条款清单、时间安排核查结论、单据要求清单与改证意见。
+                        另有独立的交单时间推算功能：最迟交单日取“最迟装运日 + 交单期”与信用证效期两者之较早者，
+                        并给出倒排时间表。该推算为确定性计算，不消耗模型调用。
+                    </dd>
+
+                    <dt>智能制单</dt>
+                    <dd>
+                        输入发票号、日期、贸易术语、发货人与收货人、货物明细与件重尺信息，
+                        输出商业发票与装箱单的规范文本，并自动附带一次自审。
+                        金额计算与大写金额转换由确定性算法完成，结果可复现。
+                    </dd>
+
+                    <dt>上传图片 / 上传 PDF / 粘贴文字</dt>
+                    <dd>
+                        单证审核的三个输入入口，输入形式不同，产出一致：一份审核报告。
+                        图片与 PDF 先经文字识别转为文本，再进入审核流程。
+                        填写信用证条款后，审核将同时覆盖单据与信用证之间的交叉核查。
+                    </dd>
+
+                    <dt>多单证对比</dt>
+                    <dd>
+                        输入两份单证，输出逐字段的差异项，以及差异可能引发的清关、收汇与退税风险。
+                        适用于发票与装箱单、提单与报关单之间的相互核对。
+                    </dd>
+
+                    <dt>历史记录</dt>
+                    <dd>全部审核记录的留存与检索，支持按关键词与日期区间筛选，可查看原始文本并导出审核报告。</dd>
+
+                    <dt>档案管理</dt>
+                    <dd>
+                        从审核文本中自动提取发票号、发货人、收货人、金额等字段形成的业务台账，
+                        支持多维筛选、排序与 Excel 导出，用于阶段性统计与业务对账。
+                    </dd>
+
+                    <dt>首页（总控助手）</dt>
+                    <dd>
+                        以对话形式查询系统中的数据，如当日审核量、问题分布、档案统计等。
+                        回答所引用的数字均来自对数据库的实时查询，不由模型生成。
+                    </dd>
+
+                    <dt>审核规则</dt>
+                    <dd>本系统全部判据的速查表，按系列与分类编排，供报告编号反查与日常查阅。</dd>
+                </dl>
+
+                <h3 class="doc-h3">四、审核依据与规则体系</h3>
+                <p class="doc-p">
+                    审核判据主要依据国际商会《跟单信用证统一惯例》（UCP600）与《关于审核跟单信用证项下单据的国际标准银行实务》（ISBP），
+                    并参照 ISO 6346（集装箱编码）、贸易术语解释通则等行业标准。规则条目均标注所依据的条款出处。
+                </p>
+                <p class="doc-p">规则按对象分为两个系列：</p>
+                <ul class="doc-list">
+                    <li><b>R 系列（单证审核规则）</b>——审查单据本身及其相互之间的一致性，分数学与金额、信用证、当事人、运输单据、货描与编码、日期逻辑、字符与格式七类。</li>
+                    <li><b>L 系列（信用证审证规则）</b>——审查信用证文本，分软条款、时间三要素、单据要求、金额与费用、信用证性质五类。</li>
+                </ul>
+                <p class="doc-p">
+                    两个系列的完整条目可在「审核规则」页查阅。规则表为全系统唯一判据来源，审核提示词、报告中的规则速查表与本页内容均由同一份数据生成。
+                </p>
+
+                <h3 class="doc-h3">五、处理方法与适用边界</h3>
+                <p class="doc-p">系统对审核任务采用两条并行的处理路径：</p>
+                <ul class="doc-list">
+                    <li>
+                        <b>确定性计算</b>——金额验算、大写金额转换、交单日期推算、日期格式归一、字段格式校验。
+                        此类结论由算法给出，可复现、可追溯，不依赖模型。
+                    </li>
+                    <li>
+                        <b>模型推理</b>——条款解读、货物描述比对、当事人一致性判断、软条款识别。
+                        此类结论由大语言模型依据上述规则体系给出，存在固有的不确定性。
+                    </li>
+                </ul>
+                <p class="doc-p">
+                    系统在设计上将可以计算的部分尽可能下沉至确定性路径，并将计算结果以“已核实事实”的形式注入模型上下文，
+                    以降低模型在数值与日期上的出错概率。若系统提供的日期与信用证原文不符，报告会明确标注该处不一致。
+                </p>
+                <p class="doc-p doc-note">
+                    适用边界：本系统的全部输出均为辅助性意见，不构成付款承诺或法律意见。
+                    单据是否相符，最终以银行审单结论为准。使用者应结合合同约定与业务实际自行判断。
+                </p>
+
+                <h3 class="doc-h3">六、术语</h3>
+                <dl class="doc-dl">
+                    <dt>不符点</dt>
+                    <dd>单据与信用证条款之间、或单据相互之间存在的、足以构成银行拒付理由的不一致。全球信用证业务中首次交单的不符点率长期居于高位。</dd>
+                    <dt>相符交单</dt>
+                    <dd>所提交单据在表面上与信用证条款一致、且单据之间互不矛盾。银行的付款义务以此为前提。</dd>
+                    <dt>交单期</dt>
+                    <dd>信用证规定的、装运日后必须向银行提交单据的期限。信用证未另行规定时，依 UCP600 为装运日后二十一个日历日，且不得晚于信用证效期。</dd>
+                    <dt>双到期</dt>
+                    <dd>最迟装运日与信用证效期为同一日，装运后须当日完成制单、寄单与交单，实务上难以执行。</dd>
+                    <dt>软条款</dt>
+                    <dd>信用证中使付款责任取决于开证申请人的行为或受益人无法控制的事件的条款，如要求由申请人签发检验证书、正本提单直寄申请人、信用证暂不生效等。此类条款使信用证的付款保障实质弱化。</dd>
+                    <dt>溢短装</dt>
+                    <dd>信用证允许的货物数量或金额的增减幅度。金额的容差适用 UCP600 关于“约”字措辞的规定，数量的容差另有规定，且不适用于以包装单位或个数计量的货物。</dd>
+                    <dt>UCP600</dt>
+                    <dd>国际商会《跟单信用证统一惯例》第六百号出版物，信用证业务的通行规则。</dd>
+                    <dt>ISBP</dt>
+                    <dd>国际商会《关于审核跟单信用证项下单据的国际标准银行实务》，对 UCP 条款的具体适用作出解释，是银行审单的实际依据。</dd>
+                    <dt>最迟装运日</dt>
+                    <dd>信用证规定的最晚装船日期，晚于该日装运即构成不符点。</dd>
+                    <dt>开证申请人 / 受益人</dt>
+                    <dd>前者为申请开立信用证的进口方，后者为享有信用证权利的出口方。商业发票应做成给开证申请人，此为最常被忽略的形式要求之一。</dd>
+                </dl>
+            </div>
+        </section>
+
+        <!-- ===== Tab: 设置 ===== -->
+        <section class="tab-content" id="tabSettings">
+            <div class="page-intro">
+                <h2 class="page-title">设置</h2>
+                <p class="page-sub">界面偏好与当前运行环境信息。</p>
+            </div>
+
+            <div class="gen-card">
+                <div class="gen-card-head">
+                    <span class="gen-card-title">界面</span>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <p class="setting-name">导航选中样式</p>
+                        <p class="setting-desc">
+                            切换左侧导航栏中当前项的高亮方式。两档均符合本系统的视觉规范，按个人阅读习惯选择即可，选择会保留在本机浏览器中。
+                        </p>
+                    </div>
+                    <div class="segmented" id="navStyleSwitch" role="group" aria-label="导航选中样式">
+                        <button type="button" class="seg-btn" data-style="block">色块</button>
+                        <button type="button" class="seg-btn" data-style="bar">竖条</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="gen-card">
+                <div class="gen-card-head">
+                    <span class="gen-card-title">本机配置</span>
+                    <span class="panel-note">只读 · 需要修改请编辑项目根目录下的 .env 文件，改后重启</span>
+                </div>
+                <table class="setting-table">
+                    <tbody>
+                        <tr><th>版本</th><td>{{ runtime.edition }}</td></tr>
+                        <tr><th>模型</th><td class="mono">{{ runtime.model }}</td></tr>
+                        <tr><th>接口地址</th><td class="mono">{{ runtime.base_url }}</td></tr>
+                        <tr><th>单文件上限</th><td>{{ runtime.max_upload_mb }} MB</td></tr>
+                        <tr><th>支持格式</th><td>{{ runtime.formats }}</td></tr>
+                        <tr><th>接口限流</th><td>{{ runtime.rate_limit }}</td></tr>
+                        <tr>
+                            <th>访问口令</th>
+                            <td>
+                                {% if runtime.password_on %}已启用
+                                {% else %}未启用 —— 本机自用可以接受；一旦通过隧道或局域网对外提供服务，请务必设置
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr><th>数据库文件</th><td class="mono">{{ runtime.db_path }}</td></tr>
+                        <tr><th>上传临时目录</th><td class="mono">{{ runtime.uploads_dir }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="gen-card">
+                <div class="gen-card-head">
+                    <span class="gen-card-title">数据</span>
+                </div>
+                <p class="doc-p">
+                    审核记录、档案与助手对话全部保存在上面那个数据库文件里，仅存于本机，不向任何第三方发送。
+                    上传的单证原件在审核完成后即行删除，不留在磁盘上。
+                </p>
+                <p class="doc-p">需要清空数据时，请前往「历史记录」或「档案管理」页，两处均有清空入口。</p>
+            </div>
+
+            <div class="gen-card">
+                <div class="gen-card-head">
+                    <span class="gen-card-title">关于</span>
+                </div>
+                <p class="doc-p">单智通 · 外贸单证 AI 审核系统</p>
+                <p class="doc-p">
+                    本系统的全部输出均为辅助性意见，不构成付款承诺或法律意见；单证是否相符，最终以银行审单结论为准。
+                </p>
+            </div>
+        </section>
+
+        <!-- LC Terms (collapsible, shared across audit tabs) -->
+        <section class="lc-section" id="lcSection">
+            <div class="lc-header" id="lcHeader">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8A85" stroke-width="2" id="lcChevron" style="transition:transform 0.2s">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+                <span>信用证条款（选填）</span>
+                <span class="lc-header-hint" id="lcHeaderHint">展开填写LC条款以进行交叉核查</span>
+                <span class="lc-header-badge" id="lcHeaderBadge" style="display:none"></span>
+            </div>
+            <div class="lc-body" id="lcBody" style="display:none">
+                <!-- Paste LC text to auto-fill -->
+                <div class="lc-paste-area">
+                    <textarea id="lcPasteInput" placeholder="粘贴LC原文自动解析填写...&#10;&#10;例如：&#10;AMOUNT: USD 100,000.00&#10;EXPIRY DATE: 2024-07-15&#10;APPLICANT: GLOBAL TRADING LLC, DUBAI, UAE&#10;LATEST SHIPMENT DATE: 2024-06-30&#10;PARTIAL SHIPMENT: NOT ALLOWED&#10;TRANSSHIPMENT: ALLOWED&#10;FREIGHT: FREIGHT PREPAID&#10;ORIGINALS: 3/3&#10;CONSIGNEE: TO ORDER OF ABC BANK&#10;DESCRIPTION MUST INCLUDE: PI NO. INV-2024-001&#10;MEASUREMENT: CBM&#10;BASE QTY: 10000 PCS&#10;TOLERANCE: 10 PCT&#10;TOLERANCE CLAUSE: 10% MORE OR LESS ALLOWED"></textarea>
+                    <button class="btn btn-secondary btn-sm" id="btnLcParse" style="margin-top:8px">解析填写</button>
+                </div>
+                <div class="lc-grid">
+                    <div class="lc-field">
+                        <label>信用证金额 Amount</label>
+                        <input type="text" id="lcAmount" placeholder="例：USD 100,000.00（写了 ABOUT 请照抄）">
+                    </div>
+                    <div class="lc-field">
+                        <label>信用证效期 Expiry / 最迟交单日</label>
+                        <input type="text" id="lcExpiry" placeholder="例：2024-07-15">
+                    </div>
+                    <div class="lc-field lc-field-wide">
+                        <label>申请人 Applicant</label>
+                        <input type="text" id="lcApplicant" placeholder="例：GLOBAL TRADING LLC, DUBAI, UAE">
+                    </div>
+                    <div class="lc-field">
+                        <label>分批装运 Partial Shipment</label>
+                        <select id="lcPartial">
+                            <option value="">未说明</option>
+                            <option value="允许">允许</option>
+                            <option value="禁止">禁止</option>
+                        </select>
+                    </div>
+                    <div class="lc-field">
+                        <label>转运 Transshipment</label>
+                        <select id="lcTransship">
+                            <option value="">未说明</option>
+                            <option value="允许">允许</option>
+                            <option value="禁止">禁止</option>
+                        </select>
+                    </div>
+                    <div class="lc-field">
+                        <label>最迟装船日 Latest Shipment Date</label>
+                        <input type="text" id="lcShipmentDate" placeholder="例：2024-06-30">
+                    </div>
+                    <div class="lc-field">
+                        <label>运费条款 Freight Terms</label>
+                        <select id="lcFreightTerms">
+                            <option value="">-- 未知 --</option>
+                            <option value="FREIGHT PREPAID">FREIGHT PREPAID</option>
+                            <option value="FREIGHT COLLECT">FREIGHT COLLECT</option>
+                        </select>
+                    </div>
+                    <div class="lc-field">
+                        <label>正本份数 Number of Originals</label>
+                        <input type="number" id="lcOriginals" placeholder="例：3" min="1">
+                    </div>
+                    <div class="lc-field">
+                        <label>收货人措辞 Consignee Wording</label>
+                        <input type="text" id="lcConsignee" placeholder="例：TO ORDER OF XX BANK">
+                    </div>
+                    <div class="lc-field lc-field-wide">
+                        <label>货物描述须包含 Required Description</label>
+                        <input type="text" id="lcDescription" placeholder="例：PI NO. XX, CONTRACT NO. XX">
+                    </div>
+                    <div class="lc-field">
+                        <label>计量单位 Measurement Unit</label>
+                        <select id="lcMeasurement">
+                            <option value="">-- 未知 --</option>
+                            <option value="CBM">CBM</option>
+                            <option value="CFT">CFT</option>
+                        </select>
+                    </div>
+                    <div class="lc-field">
+                        <label>LC基准数量 LC Base Quantity</label>
+                        <input type="text" id="lcBaseQty" placeholder="例：10000">
+                    </div>
+                    <div class="lc-field">
+                        <label>溢短装比例 Tolerance %</label>
+                        <input type="text" id="lcTolerancePct" placeholder="填10代表10%">
+                    </div>
+                    <div class="lc-field lc-field-wide">
+                        <label>溢短装条款原文 Tolerance Clause</label>
+                        <input type="text" id="lcToleranceClause" placeholder="例：10% MORE OR LESS ALLOWED ON QUANTITY">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Loading -->
+        <section class="loading-section" id="loadingSection" style="display:none">
+            <div class="loading-card">
+                <div class="spinner"></div>
+                <p class="loading-text" id="loadingText">正在 OCR 识别中...</p>
+                <div class="progress-steps">
+                    <div class="step" id="stepOcr">
+                        <span class="step-dot"></span>
+                        <span class="step-label">OCR 文字识别</span>
+                    </div>
+                    <div class="step" id="stepAi">
+                        <span class="step-dot"></span>
+                        <span class="step-label">AI 智能审核</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Result -->
+        <section class="result-section" id="resultSection" style="display:none">
+            <div class="result-card">
+                <div class="result-header">
+                    <h2>审核报告</h2>
+                    <div class="result-header-actions">
+                        <button class="btn btn-primary btn-sm" id="btnExportPdf">导出PDF</button>
+                        <button class="btn btn-secondary btn-sm" id="btnExportDiscrepancy">导不符点清单</button>
+                        <button class="btn btn-secondary btn-sm" id="btnNewAudit">新建审核</button>
+                    </div>
+                </div>
+                <div class="result-body" id="resultBody"></div>
+                <!-- One-Click Fix -->
+                <div class="fix-section" id="fixSection" style="display:none">
+                    <div class="fix-divider"></div>
+                    <button class="btn btn-primary btn-sm" id="btnFixDoc">一键修复</button>
+                    <div class="fix-result" id="fixResult" style="display:none">
+                        <h3 style="font-size:15px;margin-bottom:8px">修复建议版本</h3>
+                        <div id="fixResultBody"></div>
+                        <p class="fix-disclaimer">以上为AI修复建议，请人工确认后使用</p>
+                        <button class="btn btn-primary btn-sm" id="btnFixExportPdf">导出修复版PDF</button>
+                    </div>
+                </div>
+                <details class="ocr-raw">
+                    <summary>查看输入/OCR 原始文字</summary>
+                    <pre id="ocrRawText"></pre>
+                </details>
+            </div>
+        </section>
+
+        <!-- Error -->
+        <section class="error-section" id="errorSection" style="display:none">
+            <div class="error-card">
+                <div class="error-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="15" y1="9" x2="9" y2="15"/>
+                        <line x1="9" y1="9" x2="15" y2="15"/>
+                    </svg>
+                </div>
+                <p class="error-text" id="errorText"></p>
+                <button class="btn btn-secondary" id="btnRetry">重试</button>
+            </div>
+        </section>
+{% endblock %}
