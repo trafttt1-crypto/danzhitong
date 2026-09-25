@@ -18,7 +18,7 @@ def _rule_index():
     """
     return "、".join("%s %s" % (r["id"], r["name"]) for r in AUDIT_RULES)
 
-_SYSTEM_PROMPT_TRADE = """你是"单智通"系统的总控智能助手。单智通是一个外贸单证 AI 审核系统，功能包括：智能制单、图片审核、文字审核、PDF 审核、多单证对比、历史记录、档案管理。
+_SYSTEM_PROMPT_TRADE = """你是"单智通"系统的总控智能助手。单智通是一个外贸单证 AI 审核系统，功能包括：智能制单、图片审核、文字审核、PDF 审核、多单证对比、信用证体检、历史记录、档案管理。
 
 回答规则：
 1. 只依据下方【系统数据快照】里的事实回答；数字必须准确，绝不编造；快照里没有的信息就直说"没有查到相关记录"。
@@ -34,7 +34,7 @@ _SYSTEM_PROMPT_TRADE = """你是"单智通"系统的总控智能助手。单智�
 {snapshot}"""
 
 # 教育版（实训）：AI 助教人设
-_SYSTEM_PROMPT_EDU = """你是"单智通"系统的总控智能助手，同时是职业院校外贸 / 跨境电商 / 报关专业师生的 AI 助教。单智通是一个外贸单证 AI 审核系统，功能包括：智能制单、图片审核、文字审核、PDF 审核、多单证对比、历史记录、档案管理。
+_SYSTEM_PROMPT_EDU = """你是"单智通"系统的总控智能助手，同时是职业院校外贸 / 跨境电商 / 报关专业师生的 AI 助教。单智通是一个外贸单证 AI 审核系统，功能包括：智能制单、图片审核、文字审核、PDF 审核、多单证对比、信用证体检、实训练习、历史记录、档案管理。
 
 回答规则：
 1. 只依据下方【系统数据快照】里的事实回答；数字必须准确，绝不编造；快照里没有的信息就直说"没有查到相关记录"。
@@ -212,6 +212,28 @@ def _extract_problems(audit_result, max_items=8, clip=90):
     return items
 
 
+def _practice_source_ids():
+    """实训题目的题面来源记录 id —— 这些单证的内容不能进快照。
+
+    实训练习是**故意藏答案**的（标准答案不进 JSON 响应，前端 F12 也看不到）。
+    但助手要是从审核历史里读到同一份单证的问题清单，等于把答案念给了学生。
+
+    三道预置题是内置的（source_record_id = 0），不受影响；
+    这里挡的是「从历史记录一键转成题目」造出来的那些题。
+
+    为什么写在代码里而不是人设里：**模型判断不出「这一条是练习题」**。
+    实测把答案塞进快照后，edu 版（带禁止条款）和 trade 版（没这条）答得一模一样，
+    照样把规则编号念了出来。判不了的条件就别交给提示词。
+    """
+    try:
+        rows = _db().execute(
+            "SELECT source_record_id FROM practice_case WHERE source_record_id > 0"
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return ()
+    return tuple(r[0] for r in rows)
+
+
 def build_snapshot():
     """从数据库实时生成数据快照（助手回答的唯一事实来源）"""
     db = _db()
@@ -219,15 +241,25 @@ def build_snapshot():
     today = now.strftime("%Y-%m-%d")
     month = now.strftime("%Y-%m")
 
+    # 题面来源记录整体排除。三条查询（今天列表 / 今天计数 / 最近 20 条）
+    # 必须用同一个条件 —— 只挡列表不挡计数的话，会出现
+    # 「今天共 N 条，仅列 N-1 条」这种能被学生看出「有东西藏着」的破绽。
+    hide = _practice_source_ids()
+    excl = (" AND id NOT IN (%s)" % ",".join("?" * len(hide))) if hide else ""
+
     today_rows = db.execute(
-        "SELECT created_at, input_type, input_summary, audit_result FROM audit_history WHERE created_at LIKE ? ORDER BY id DESC LIMIT 40",
-        (today + "%",),
+        "SELECT created_at, input_type, input_summary, audit_result FROM audit_history"
+        " WHERE created_at LIKE ?" + excl + " ORDER BY id DESC LIMIT 40",
+        (today + "%",) + hide,
     ).fetchall()
     today_total = db.execute(
-        "SELECT COUNT(*) FROM audit_history WHERE created_at LIKE ?", (today + "%",)
+        "SELECT COUNT(*) FROM audit_history WHERE created_at LIKE ?" + excl,
+        (today + "%",) + hide,
     ).fetchone()[0]
     recent_rows = db.execute(
-        "SELECT created_at, input_type, input_summary, audit_result FROM audit_history ORDER BY id DESC LIMIT 20"
+        "SELECT created_at, input_type, input_summary, audit_result FROM audit_history"
+        " WHERE 1=1" + excl + " ORDER BY id DESC LIMIT 20",
+        hide,
     ).fetchall()
 
     month_count = db.execute(
