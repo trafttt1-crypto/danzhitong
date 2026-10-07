@@ -3,6 +3,7 @@ import re
 import requests
 from datetime import datetime
 from config.settings import Config
+from services.math_check import facts_block
 from config.prompts import (
     build_system_prompt, build_lc_review_prompt, LC_FIELDS_PROMPT, LC_FIELD_KEYS,
 )
@@ -62,6 +63,8 @@ def deepseek_audit(ocr_text, lc_terms=None, system_prompt=None, doc_count=1, int
     lc_prefix = build_lc_prefix(lc_terms)
     # 不给基准日期的话，模型会自己猜"今天"，把正常单据判成"未来日期"
     date_prefix = "【审核基准日期】今天是 %s，涉及日期先后、有效期、是否为未来日期的判断一律以此为准。\n\n" % datetime.now().strftime("%Y-%m-%d")
+    # 金额、重量、唛头箱数由程序先算好（模型实测会把 3,000 × 5.20 算成 15,000）
+    math_prefix = facts_block(ocr_text)
     # rstrip：.env 里多个结尾斜杠就会拼出 //chat/completions，网关 404
     url = Config.DEEPSEEK_BASE_URL.rstrip("/") + "/chat/completions"
     headers = {
@@ -72,7 +75,7 @@ def deepseek_audit(ocr_text, lc_terms=None, system_prompt=None, doc_count=1, int
         "model": Config.DEEPSEEK_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"{date_prefix}{lc_prefix}请审核以下单证内容：\n\n{ocr_text}"},
+            {"role": "user", "content": f"{date_prefix}{lc_prefix}{math_prefix}请审核以下单证内容：\n\n{ocr_text}"},
         ],
         "temperature": 0.3,
         "max_tokens": 16384,

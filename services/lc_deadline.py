@@ -35,7 +35,7 @@ def parse_flexible_date(raw):
     认得的写法：2026-09-15、2026/09/15、2026.09.15、20260915、
     15 SEP 2026、15 September 2026、2026年9月15日。
 
-    认不出、或者有歧义（03/04/2026 到底是 3 月 4 日还是 4 月 3 日）一律返回 None，
+    认不出、有歧义（03/04/2026 到底是 3 月 4 日还是 4 月 3 日）、或年份不在 1900-2200 之间，一律返回 None，
     由调用方给出明确提示 —— 交单日期猜错比让用户重填一次严重得多。
     """
     if not raw:
@@ -95,6 +95,9 @@ def parse_flexible_date(raw):
 
 
 def _safe_date(year, month, day):
+    # 年份放宽到 1900-2200 已足够；9999-12-31 再加交单期会溢出 date 的上限，接口直接 500
+    if not 1900 <= year <= 2200:
+        return None
     try:
         return date(year, month, day)
     except ValueError:
@@ -121,23 +124,31 @@ def presentation_deadline(shipment_date, expiry, days=None, mailing_days=5, toda
     返回 dict，永远不抛异常：字段错误走 ok=False + error，前端直接显示。
     """
     today = today or date.today()
-    days = int(days) if days else DEFAULT_PRESENTATION_DAYS
-    if days <= 0:
+    # 文档承诺"永远不抛异常"，原来 days="abc" 或 10 亿天都会抛到接口变成 500。
+    # 交单期超过一年、寄单超过 60 天都不是真实信用证会有的值，按输错处理
+    try:
+        days = int(days) if days else DEFAULT_PRESENTATION_DAYS
+    except (TypeError, ValueError):
+        days = DEFAULT_PRESENTATION_DAYS
+    if not 0 < days <= 366:
         days = DEFAULT_PRESENTATION_DAYS
     try:
-        mailing_days = max(0, int(mailing_days))
+        mailing_days = int(mailing_days)
     except (TypeError, ValueError):
         mailing_days = 5
+    mailing_days = min(max(0, mailing_days), 60)
 
     ship = parse_flexible_date(shipment_date)
     exp = parse_flexible_date(expiry)
 
-    if not ship and not exp:
-        return {"ok": False, "error": "请至少填写「最迟装运日」或「信用证效期」"}
+    # 先报"填了但认不出"，再报"没填"：顺序反过来时，只填一个 03/04/2026
+    # 得到的是"请至少填写…"，那条专门写好的"月日有歧义"提示永远到不了用户眼前
     if shipment_date and not ship:
         return {"ok": False, "error": _date_error_msg(shipment_date, "最迟装运日")}
     if expiry and not exp:
         return {"ok": False, "error": _date_error_msg(expiry, "信用证效期")}
+    if not ship and not exp:
+        return {"ok": False, "error": "请至少填写「最迟装运日」或「信用证效期」"}
 
     warnings = []
 

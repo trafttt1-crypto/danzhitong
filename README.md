@@ -5,6 +5,8 @@
 
 面向出口企业的单证员与外贸业务员，也可用于职业院校外贸单证课程的实训教学。
 
+当前版本 **v1.3.0**（2026-10-01），变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+
 ![首页](docs/images/01-home.png)
 
 ---
@@ -43,12 +45,30 @@
 
 ![交单时间表](docs/images/03-deadline.png)
 
+### 单证一致性图
+银行审单看的是「单证相符、单单相符」。把信用证、发票、装箱单、提单的文字分别贴进来，
+同一个字段排在同一行：**对得上连绿线，疑似拼写差异连黄线，对不上连红线**。
+
+![单证一致性图](docs/images/08-consistency-graph.png)
+
+这张图**全程由代码确定性比对，不调用大模型**（`services/consistency.py`）：
+
+- 字段用正则从原文的「标签：值」里抽。看着不可信的值（表格排版的虚线、表头残片、串到下一栏的文字）
+  会被当作「未提取」，显示灰色，**宁可空着也不画错**；用 50 份真实档案原文检验过，抽出的 580 个字段里
+  没有明显的荒唐值。但标签写得不规范的单证仍可能抽错，**图上的每一条线都请对着原文核实**；
+- 业务上的细节：发票金额不超过信用证金额视为一致（UCP600 第 18 条 b 款）；信用证的申请人
+  不与提单收货人比对，因为提单常合法地写成 `TO ORDER OF 某银行`；
+- 有明确对应规则的差异会标出规则编号（金额 R11、币别 R12、货描 R19、港口 R21、抬头 R31、出具人 R32…），
+  没有对应规则的（比如重量、件数）不硬凑。
+
 ### 其余模块
 - **智能制单**：填表生成商业发票与装箱单，金额合计与大写金额由算法完成
 - **多单证对比**：发票与装箱单并排比对
+- **单证一致性图**：见下文
 - **历史记录 / 档案管理**：审核记录可检索回看，关键字段沉淀为档案并可导出 Excel
 - **审核规则**：60 条规则的完整速查页，可按编号或关键词检索
 - **实训练习**（教育版）：见下文
+- **配色主题**：设置页可在「冷白钴蓝」与「暖纸陶土」之间切换，选择保存在浏览器本地
 
 ---
 
@@ -105,7 +125,7 @@
 
 ## 快速开始
 
-**要求**：Python 3.11（其他版本未测试）
+**要求**：Python 3.10 或更高（3.10 与 3.11 上测试通过）
 
 ```bash
 # 1. 装依赖
@@ -128,14 +148,29 @@ Windows 用户也可以直接双击项目根目录的 `启动-标准版.bat` / `
 > 两者都需要自行注册申请，都会产生费用。密钥只存在本机 `.env` 文件里，
 > 不写入数据库，也不渲染到页面上。
 
+### 部署到云服务器（Ubuntu）
+
+```bash
+git clone https://gitee.com/<用户名>/danzhitong.git /opt/danzhitong
+cd /opt/danzhitong
+cp .env.example .env && nano .env    # 填密钥；公网部署必须设 DZT_ACCESS_PASSWORD
+sudo bash deploy/install.sh          # 默认端口 8000，DZT_PORT=8080 可改
+```
+
+脚本会安装 Python 依赖（走国内镜像）与中文字体（PDF 导出要用），
+注册为 systemd 服务（开机自启、崩溃自动重启），最后访问 `/healthz` 自检。
+没有设置访问口令时脚本会拒绝部署。代码更新后 `git pull` 再跑一次脚本即可。
+记得在云控制台的安全组里放行对应端口。
+
 ---
 
 ## 目录结构
 
 ```
-app.py                 应用入口、限流、登录
+app.py                 应用入口、限流、登录、/healthz 探活
 config/
   settings.py          配置（全部从环境变量读）
+  version.py           版本号与更新日志（全项目唯一一份）
   prompts.py           规则表 + 提示词生成 ← 审核知识都在这里
 routes/main.py         全部 HTTP 接口
 services/
@@ -146,7 +181,15 @@ services/
   archive.py           档案抽取与统计
   practice.py          实训练习的判卷（教育版）
 templates/ static/     前端（原生 HTML/CSS/JS，无框架无构建）
+  static/js/report_view.js   把审核报告解析成「结论横幅 + 问题卡片」
+  static/css/theme.css       配色主题（冷白钴蓝为默认，这里只放暖色那一套）
+tools/gen_changelog.py 从 config/version.py 生成 CHANGELOG.md
+tests/                 单元测试（一致性比对）：python -m unittest discover -s tests -v
 ```
+
+### 发版
+
+改 `config/version.py` 里的 `VERSION`、`RELEASE_DATE` 和 `CHANGELOG`（新条目放最前面），再运行 `python tools/gen_changelog.py`。侧栏、设置页「关于」、登录页、`/api/version` 与 `/healthz` 都会自动跟着变。`/healthz` 只返回状态和版本号，不带业务数据，可用于部署后的探活。
 
 ---
 

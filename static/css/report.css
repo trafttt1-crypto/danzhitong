@@ -1,0 +1,181 @@
+/* ===== 审核报告视图（report_view.js 渲染）=====
+   设计方向：审单员桌上那份批注过的单据，而不是 SaaS 仪表盘。
+   上一版的问题（对照公开的界面设计反模式清单自查出来的）：
+     - 问题卡片里又套了一个绿色"建议修改"框           -> 卡片套卡片
+     - 严重度、状态、版本号全是药丸胶囊                 -> AI 胶囊徽标
+     - 结论横幅里三个统计小方块                         -> 模板化的 KPI 块
+     - 所有容器统一大圆角 + 柔和阴影                     -> 圆角过度、阴影过度
+   现在：细线分隔、等宽数字、小方块标状态、一枚楷体批注章。没有阴影，圆角只有 3–4px。
+   颜色只承担状态语义（红=要改、琥珀=要复核、绿=通过），正文一律深色。 */
+
+.rv {
+    --rv-bad: #B42318;
+    --rv-warn: #94590A;
+    --rv-ok: #0B7A42;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    line-height: 1.7;
+}
+
+/* ---------- 结论区：顶部粗线 + 批注章 ---------- */
+.rv-verdict {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 28px;
+    align-items: start;
+    padding: 18px 0 20px;
+    border-top: 3px solid var(--rv-c);
+    border-bottom: 1px solid var(--border);
+}
+.rv-verdict.is-bad { --rv-c: var(--rv-bad); }
+.rv-verdict.is-ok  { --rv-c: var(--rv-ok); }
+
+.rv-kicker { margin: 0; font-size: 0.8125rem; letter-spacing: 0.04em; color: var(--text-secondary); }
+.rv-summary { margin: 6px 0 0; max-width: 64ch; font-size: 1.0625rem; line-height: 1.8; color: var(--text); }
+.rv-counts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 0;
+    margin: 14px 0 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+.rv-ct b { margin-right: 2px; font-size: 1.25rem; font-weight: 800; color: var(--text); }
+.rv-ct.is-zero b { color: var(--text-muted); font-weight: 600; }
+.rv-sep { display: inline-block; width: 1px; height: 14px; margin: 0 16px; background: var(--border); align-self: center; }
+
+/* 批注章：楷体（LXGW WenKai 子集）+ 双线框 + 微微歪一点，像真盖上去的。
+   章上只会出现「需修改 / 通过 / 可接受 …」这几个固定词，字都在子集里。 */
+.rv-stamp {
+    flex: none;
+    margin-top: 4px;
+    padding: 6px 16px 6px 20px;
+    border: 2px solid var(--rv-c);
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 3px var(--card), inset 0 0 0 4px var(--rv-c);
+    color: var(--rv-c);
+    font-family: "DZT Kai", "LXGW WenKai", "KaiTi", "Kaiti SC", "STKaiti", serif;
+    font-size: 1.875rem;
+    line-height: 1.3;
+    letter-spacing: 0.14em;
+    white-space: nowrap;
+    transform: rotate(-3deg);
+    opacity: 0.92;
+    user-select: none;
+}
+
+/* ---------- 问题：细线分隔的条目 ---------- */
+.rv-block { display: flex; flex-direction: column; }
+.rv-h {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--text);
+    font-size: 0.875rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: var(--text);
+}
+.rv-count { font-weight: 600; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.rv-empty { margin: 14px 0 0; color: var(--text-secondary); }
+
+.rv-issues { list-style: none; padding: 0; margin: 0; }
+.rv-issue {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 10px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border-light);
+}
+.rv-no { padding-top: 3px; font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted); }
+.rv-issue-body { min-width: 0; }
+.rv-issue-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-bottom: 4px; }
+.rv-loc { font-weight: 800; color: var(--text); }
+.rv-norule { font-size: 0.75rem; color: var(--text-muted); }
+.rv-desc { margin: 0; max-width: 72ch; font-size: 0.9375rem; line-height: 1.8; color: var(--text); }
+
+/* 建议修改：不画框，只在前面放一个小标签，文字缩进对齐 */
+.rv-fix {
+    display: grid;
+    grid-template-columns: 2.6em minmax(0, 1fr);
+    gap: 10px;
+    max-width: 72ch;
+    margin: 8px 0 0;
+    font-size: 0.9375rem;
+    line-height: 1.8;
+    color: var(--text);
+}
+.rv-fix-label { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; color: var(--rv-ok); padding-top: 2px; }
+
+.rv-note { margin: 12px 0 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.7; }
+
+/* ---------- 严重度：小方块 + 文字（不是药丸）---------- */
+.rv-sev { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem; font-weight: 800; line-height: 1.6; white-space: nowrap; }
+.rv-sev::before { content: ""; width: 8px; height: 8px; background: currentColor; }
+.rv-sev-critical { color: var(--rv-bad); }
+.rv-sev-error    { color: var(--rv-warn); }
+.rv-sev-warning  { color: var(--text-secondary); }
+
+/* 规则编号：这是真正可点的徽标（点一下跳到规则页），保留细线框，但只留 3px 圆角 */
+.rv .rpt-tag { margin-right: 0; border-radius: 3px; }
+
+/* ---------- 折叠区：细线，不画框 ---------- */
+.rv-folds { display: flex; flex-direction: column; border-top: 1px solid var(--text); }
+.rv-fold { border-bottom: 1px solid var(--border-light); }
+.rv-fold > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 0;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--text);
+}
+.rv-fold > summary::-webkit-details-marker { display: none; }
+.rv-fold > summary:hover .rv-fold-title { text-decoration: underline; text-underline-offset: 3px; }
+.rv-fold > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.rv-chev { flex: none; color: var(--text-muted); }
+.rv-fold[open] > summary .rv-chev { transform: rotate(90deg); }
+.rv-fold-badge { margin-left: auto; font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.rv-fold.is-quiet > summary { font-weight: 600; color: var(--text-secondary); }
+.rv-fold-body { padding: 0 0 16px 20px; }
+
+.rv-flag { margin-left: auto; font-size: 0.8125rem; font-weight: 800; }
+.rv-flag.is-ok  { color: var(--rv-ok); }
+.rv-flag.is-bad { color: var(--rv-bad); }
+
+.rv-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.rv-list li { position: relative; padding-left: 14px; font-size: 0.875rem; line-height: 1.75; color: var(--text); }
+.rv-list li::before { content: ""; position: absolute; left: 0; top: 0.78em; width: 5px; height: 1px; background: var(--text-muted); }
+.rv-risks li > .rv-sev, .rv-risks li > .rpt-tag { margin-right: 8px; }
+.rv-exec-k { margin-right: 6px; color: var(--text-secondary); }
+.rv-fold.is-quiet .rv-list li { color: var(--text-secondary); }
+
+/* ---------- 窄屏 ---------- */
+@media (max-width: 760px) {
+    .rv-verdict { grid-template-columns: 1fr; gap: 14px; }
+    .rv-stamp { justify-self: start; order: -1; font-size: 1.5rem; }
+    .rv-issue { grid-template-columns: 1fr; gap: 4px; }
+    .rv-fold-body { padding-left: 0; }
+}
+
+@media print {
+    .rv-fold:not([open]) > .rv-fold-body { display: block; }
+    .rv-stamp { transform: none; }
+}
+
+/* 盖掉 app.css 里 .result-body ul/ol/li 的缩进与外边距（它们的优先级比单个类高） */
+.rv .rv-issues, .rv .rv-list { padding-left: 0; margin: 0; }
+.rv li { margin: 0; }
+.rv .rv-list { gap: 8px; }
+/* 带严重度小方块的风险项：不再额外画破折号，避免两个标记叠在一起 */
+.rv-risks li { padding-left: 0; }
+.rv-risks li::before { display: none; }

@@ -1,6 +1,7 @@
 """Archive management — auto-classify and store document records."""
 import sqlite3
 import io
+import os
 import logging
 import re
 import traceback
@@ -13,6 +14,42 @@ logger = logging.getLogger(__name__)
 
 # "问题1：" / "问题 1:" / "问题2." —— 审核报告的固定格式，全项目统计以此为唯一口径
 ISSUE_RE = re.compile(r"问题\s*\d+\s*[：:．.、]\s*(.*)")
+
+
+def doc_type_from_report(audit_result):
+    """从审核报告的【单证类型】小节取单据类型，如「商业发票」「装箱单」。取不到返回空串。
+
+    档案的"单证类型"列原来对所有记录一律写死成「审核报告」，整列没有信息量。
+    """
+    m = re.search(r"【单证类型】\s*([^\n]+)", audit_result or "")
+    if not m:
+        return ""
+    line = m.group(1).replace("**", "").strip()
+    # 模型这一行的写法五花八门（"商业发票（COMMERCIAL INVOICE，发票号…）"、
+    # "商业发票 COMMERCIAL INVOICE"、"1. COMMERCIAL INVOICE"、"经识别为商业发票…"），
+    # 直接截断会得到"商业发票 COMMERCIAL INVO"这种半截字。先按已知单据名认，认不出再退而求其次。
+    for pat, name in _DOC_TYPE_NAMES:
+        if re.search(pat, line, re.I):
+            return name
+    head = re.sub(r"^\d+[.、)）]\s*", "", re.split(r"[（(，,]", line)[0]).strip()
+    cn = re.match(r"[一-鿿]+", head)
+    return (cn.group(0) if cn else head)[:20]
+
+
+# (正则, 规范名)：顺序即优先级，更具体的放前面（"形式发票"要先于"商业发票"里的"发票"）
+_DOC_TYPE_NAMES = [
+    (r"并非外贸单证|非外贸单证|不是外贸单证", "非外贸单证"),
+    (r"形式发票|PROFORMA", "形式发票"),
+    (r"商业发票|COMMERCIAL\s+INVOICE", "商业发票"),
+    (r"装箱单|PACKING\s+LIST", "装箱单"),
+    (r"海运提单|BILL\s+OF\s+LADING|\bB/L\b", "提单"),
+    (r"提单", "提单"),
+    (r"空运单|AIR\s*WAYBILL", "空运单"),
+    (r"报关单", "报关单"),
+    (r"保险单|INSURANCE\s+POLICY", "保险单"),
+    (r"原产地证|CERTIFICATE\s+OF\s+ORIGIN", "原产地证"),
+    (r"信用证|LETTER\s+OF\s+CREDIT|MT\s*700", "信用证"),
+]
 
 
 def iter_issues(audit_result):
@@ -39,7 +76,17 @@ def has_issue(audit_result):
     text = audit_result or ""
     m = re.search(r"【审核结论】\s*(.*)", text, re.S)
     conclusion = m.group(1)[:200] if m else ""
+    # 先认结论开头的判定词。只做子串匹配的话，「通过（…）：…未发现需修改项」
+    # 里的"需修改"会把一份通过的单据记成有问题（实测 #86）
+    head = _VERDICT_HEAD_RE.match(conclusion.replace("**", ""))
+    if head:
+        return head.group(1) not in ("通过", "可接受")
     return ("需修改" in conclusion) or ("不通过" in conclusion)
+
+
+# 审核结论开头的判定词（提示词规定的写法：通过 / 需修改；体检：可接受 / 建议改证）。
+# "不通过"要排在"通过"前面，否则会被当成"通过"
+_VERDICT_HEAD_RE = re.compile(r"[\s\-#>]*(不通过|需修改|需修正|建议改证|通过|可接受)")
 
 
 def extract_doc_fields(ocr_text):
@@ -49,6 +96,61 @@ def extract_doc_fields(ocr_text):
     在导出时再手填一遍发票号，是没必要的手工活。
     """
     return _extract_fields(ocr_text)
+
+
+# 当事人栏里不该出现的"脏"值：纯标签词、带标签前缀（"Shipper: NINGBO…"）、斜杠残留（"/ Exporter:"）。
+# 这些都是早期版本的抽取逻辑留在库里的旧数据，当前抽取器已经不会再产出。
+_DIRTY_PARTY_RE = re.compile(r"^\s*(?:/|(?:Shipper|Consignee|Exporter|Importer|Notify)\b)", re.I)
+
+
+def _is_dirty_party(name):
+    return bool(name) and bool(_DIRTY_PARTY_RE.match(name))
+
+
+def _backfill_archive_fields(db):
+    """旧档案两处数据质量问题的回填：单证类型写死成「审核报告」、当事人栏带着标签。
+
+    只改明确错误的行（类型是占位词、当事人名命中 _DIRTY_PARTY_RE），并且只在确有
+    要改的行时才动手，动手之前把数据库文件备份一份。幂等：改完再跑不会再命中任何行。
+    新值用当前抽取器从原文重算；重算结果本身还是脏的就不动，宁可保留原值。
+    """
+    rows = db.execute(
+        "SELECT id, doc_type, shipper_name, consignee_name, ocr_text, audit_result FROM archive "
+        "WHERE doc_type = '审核报告' "
+        "OR shipper_name LIKE '/%' OR consignee_name LIKE '/%' "
+        "OR shipper_name LIKE 'Shipper%' OR shipper_name LIKE 'Consignee%' "
+        "OR shipper_name LIKE 'Exporter%' OR shipper_name LIKE 'Importer%' OR shipper_name LIKE 'Notify%' "
+        "OR consignee_name LIKE 'Shipper%' OR consignee_name LIKE 'Consignee%' "
+        "OR consignee_name LIKE 'Exporter%' OR consignee_name LIKE 'Importer%' OR consignee_name LIKE 'Notify%'"
+    ).fetchall()
+    changes = []
+    for rid, doc_type, shipper, consignee, ocr_text, audit_result in rows:
+        new_type = (doc_type_from_report(audit_result) if doc_type == "审核报告" else doc_type) or doc_type
+        new_shipper, new_consignee = shipper, consignee
+        if _is_dirty_party(shipper) or _is_dirty_party(consignee):
+            try:
+                f = _extract_fields(ocr_text)
+            except Exception:
+                f = {}
+            if _is_dirty_party(shipper) and not _is_dirty_party(f.get("shipper_name", "")):
+                new_shipper = f.get("shipper_name", "")
+            if _is_dirty_party(consignee) and not _is_dirty_party(f.get("consignee_name", "")):
+                new_consignee = f.get("consignee_name", "")
+        if new_type != doc_type or new_shipper != shipper or new_consignee != consignee:
+            changes.append((new_type, new_shipper, new_consignee, rid))
+    if not changes:
+        return
+    try:
+        import shutil
+        bak = Config.DB_PATH + ".bak-before-archive-backfill"
+        if not os.path.exists(bak):
+            shutil.copy2(Config.DB_PATH, bak)
+    except Exception:
+        logger.warning("备份数据库失败，仍继续回填: %s", traceback.format_exc())
+    db.executemany(
+        "UPDATE archive SET doc_type = ?, shipper_name = ?, consignee_name = ? WHERE id = ?", changes
+    )
+    logger.info("档案回填：修正了 %d 条记录的单证类型/当事人", len(changes))
 
 
 def init_archive():
@@ -80,12 +182,15 @@ def init_archive():
         db.execute("ALTER TABLE archive ADD COLUMN has_issue INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
         pass  # column already exists
-    # 旧数据回填：只把该标 1 的补上，幂等且可自愈
-    for rid, result in db.execute(
-        "SELECT id, audit_result FROM archive WHERE has_issue IS NULL OR has_issue = 0"
+    # 旧数据回填：按当前口径重算，两个方向都纠正（判定口径修过，
+    # 以前被误标成 1 的通过单据也要改回 0）。幂等：算出来一样就不写
+    for rid, result, old in db.execute(
+        "SELECT id, audit_result, has_issue FROM archive"
     ).fetchall():
-        if has_issue(result):
-            db.execute("UPDATE archive SET has_issue = 1 WHERE id = ?", (rid,))
+        new = 1 if has_issue(result) else 0
+        if old != new:
+            db.execute("UPDATE archive SET has_issue = ? WHERE id = ?", (new, rid))
+    _backfill_archive_fields(db)
     db.execute("CREATE INDEX IF NOT EXISTS idx_archive_invoice ON archive(invoice_no)")
     db.execute("CREATE INDEX IF NOT EXISTS idx_archive_created ON archive(created_at)")
     db.commit()
@@ -243,6 +348,29 @@ def build_excel(records):
     return buf
 
 
+# 当事人栏的标签词。OCR 常把中英标签连着写（"发货人Shipper"、"Shipper/Exporter"），
+# 紧跟在标签后面的这些词、斜杠、冒号、空白（含换行）都要一起吃掉，剩下才是公司名。
+# 旧写法只认「标签 + 冒号」，遇到"发货人Shipper\nNINGBO…"会把 "Shipper" 当成公司名存进档案。
+_PARTY_LABELS = r'(?:Shipper|Exporter|Consignee|Importer|Notify|发货人|收货人|出口商|进口商)'
+
+
+def _value_after_label(text, label_pattern):
+    m = re.search(label_pattern, text, re.I)
+    if not m:
+        return ""
+    rest = text[m.end():]
+    # 标签后面还可能跟一段括号注释："Consignee (Buyer): AL NOOR…"
+    rest = re.sub(r'^(?:\s|[/／：:.]|\([^)\n]{1,20}\)|（[^）\n]{1,20}）|%s)+' % _PARTY_LABELS, '', rest, flags=re.I)
+    value = rest.split("\n", 1)[0].strip()
+    # 这一栏在原文里是空的，紧跟着的是下一个栏目的标签（"Port of Loading:"、"日期 Date"）：
+    # 宁可留空也不能把标签当成公司名存进档案
+    if re.search(r'[:：]\s*$', value) or re.match(
+            r'(?:Port|Date|Invoice|Payment|Trade|Terms|Description|Total|Notify|Marks|Goods|'
+            r'日期|发票|付款|贸易|装运|目的|货物|总)', value, re.I):
+        return ""
+    return value
+
+
 def _extract_fields(ocr_text):
     """从 OCR 文本里抽关键字段。每个字段独立兜底，一个抽不到不影响其它。"""
     text = ocr_text or ""
@@ -266,18 +394,8 @@ def _extract_fields(ocr_text):
         if invoice_no:
             break
 
-    # 中英双标签时，去掉粘在前面的英文标签（"Shipper: NINGBO ..." → "NINGBO ..."）
-    _LEAD_LABEL_RE = re.compile(r'^(?:Shipper|Exporter|Consignee|Importer|发货人|收货人)\s*[：:.]\s*', re.I)
-
-    shipper = ""
-    m = re.search(r'(?:Shipper|Exporter|发货人)\s*[：:]*\s*\n?\s*(.+)', text, re.I)
-    if m:
-        shipper = _LEAD_LABEL_RE.sub("", m.group(1).strip())[:80]
-
-    consignee = ""
-    m = re.search(r'(?:Consignee|Importer|收货人)\s*[：:]*\s*\n?\s*(.+)', text, re.I)
-    if m:
-        consignee = _LEAD_LABEL_RE.sub("", m.group(1).strip())[:80]
+    shipper = _value_after_label(text, r'(?:Shipper|Exporter|发货人|出口商)')[:80]
+    consignee = _value_after_label(text, r'(?:Consignee|Importer|收货人|进口商)')[:80]
 
     goods = ""
     m = re.search(r'(?:\d+\.\s*|品名[：:]\s*)([A-Za-z一-鿿\s\-]+)', text)
@@ -312,7 +430,7 @@ def auto_archive_text(ocr_text, audit_result, operation_type, history_id=0):
     save_archive({
         "history_id": history_id,
         "invoice_no": fields.get("invoice_no", ""),
-        "doc_type": "审核报告",
+        "doc_type": doc_type_from_report(audit_result) or "审核报告",
         "shipper_name": fields.get("shipper_name", ""),
         "consignee_name": fields.get("consignee_name", ""),
         "goods_name": fields.get("goods_name", ""),

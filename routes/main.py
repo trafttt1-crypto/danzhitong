@@ -24,7 +24,9 @@ from services import (
 )
 from services.deepseek_audit import deepseek_compare
 from services.discrepancy import severity_label
-from services.archive import auto_archive_text
+from services.archive import auto_archive_text, count_issues, has_issue, doc_type_from_report
+from services.consistency import build_graph
+from services.consistency_sample import SAMPLE_DOCS
 from services import assistant
 from services import practice
 
@@ -136,6 +138,20 @@ def _extract_upload_text(file_storage):
     return text, filepath, ext
 
 
+# 推理模型输出被截断时 content 会是空的。原来照样当成功：页面一片空白、
+# 历史里存一条空记录、档案里还因为"没数到问题"记成「通过」
+_EMPTY_REPLY_MSG = "AI 这次没有返回内容（多半是输出被截断），请重试。本次没有保存记录。"
+
+
+# 送去给 AI 的正文上限（与信用证体检原有的 6 万字一致）。
+# 对比、一键修复原来不设上限，贴一整本资料进来就是一次大额调用
+_AI_MAX_CHARS = 60000
+
+
+def _is_empty_reply(result):
+    return not (result or "").strip()
+
+
 def _parse_deadline_input(raw):
     """体检请求里带的交单时间参数。前端传 dict，也容忍 JSON 字符串。"""
     if isinstance(raw, str) and raw.strip():
@@ -195,6 +211,8 @@ def audit_text():
         return jsonify({"error": lc_err}), 400
     try:
         audit_result = deepseek_audit(text, lc_terms)
+        if _is_empty_reply(audit_result):
+            return jsonify({"error": _EMPTY_REPLY_MSG}), 502
         record_id = save_audit_record("text", text[:200], text, audit_result)
         auto_archive_text(text, audit_result, "上传审核", record_id)
         return jsonify({"success": True, "ocr_text": text, "audit_result": audit_result, "record_id": record_id})
@@ -228,6 +246,8 @@ def audit():
             return jsonify({"error": "OCR 未能识别到文字，请确认文件清晰度"}), 400
 
         audit_result = deepseek_audit(ocr_text, lc_terms)
+        if _is_empty_reply(audit_result):
+            return jsonify({"error": _EMPTY_REPLY_MSG}), 502
         record_id = save_audit_record(
             "pdf" if is_pdf else "image", _display_filename(file), ocr_text, audit_result,
         )
@@ -241,6 +261,32 @@ def audit():
     finally:
         # 成功、失败、异常都删 —— 用户以为"审核失败"就等于没上传
         _remove_upload(filepath)
+
+
+# ---- 单证一致性图（确定性比对，不调用大模型，不花 API 额度）----
+_CG_MIN, _CG_MAX, _CG_MAX_CHARS = 2, 5, 20000
+
+
+@main_bp.route("/api/consistency", methods=["POST"])
+def api_consistency():
+    data = request.get_json(silent=True) or {}
+    docs = data.get("docs")
+    if not isinstance(docs, list):
+        return jsonify({"error": "请求格式不对：docs 应该是单证文字的列表"}), 400
+    texts = [as_text(t).strip() for t in docs]
+    texts = [t for t in texts if t]
+    if len(texts) < _CG_MIN:
+        return jsonify({"error": "至少需要两份单证才能比对"}), 400
+    if len(texts) > _CG_MAX:
+        return jsonify({"error": "一次最多比对 %d 份单证" % _CG_MAX}), 400
+    if any(len(t) > _CG_MAX_CHARS for t in texts):
+        return jsonify({"error": "单份单证文字过长（上限 %d 字）" % _CG_MAX_CHARS}), 400
+    return jsonify(build_graph(texts))
+
+
+@main_bp.route("/api/consistency/sample", methods=["GET"])
+def api_consistency_sample():
+    return jsonify({"docs": SAMPLE_DOCS})
 
 
 # ---- Multi-Doc Compare ----
@@ -267,9 +313,13 @@ def compare_docs():
 
     if not text_a or not text_b:
         return jsonify({"error": "两边都需要提供单证内容（文字或文件）"}), 400
+    if len(text_a) > _AI_MAX_CHARS or len(text_b) > _AI_MAX_CHARS:
+        return jsonify({"error": "单证内容过长，请分段处理"}), 400
 
     try:
         compare_result = deepseek_compare(text_a, text_b, COMPARE_PROMPT)
+        if _is_empty_reply(compare_result):
+            return jsonify({"error": _EMPTY_REPLY_MSG}), 502
         return jsonify({"success": True, "text_a": text_a, "text_b": text_b, "audit_result": compare_result})
     except requests.RequestException as e:
         return jsonify({"error": f"API 调用失败: {str(e)}"}), 500
@@ -308,7 +358,7 @@ def lc_review():
     try:
         if not lc_text:
             return jsonify({"error": "未提供信用证内容"}), 400
-        if len(lc_text) > 60000:
+        if len(lc_text) > _AI_MAX_CHARS:
             return jsonify({"error": "信用证内容过长，请分段处理"}), 400
 
         # 日期先用本地算法算死，再当事实喂给模型 —— 不让它自己算
@@ -324,6 +374,8 @@ def lc_review():
             deadline_facts = build_deadline_facts(deadline_result)
 
         review = deepseek_lc_review(lc_text, deadline_facts=deadline_facts)
+        if _is_empty_reply(review):
+            return jsonify({"error": _EMPTY_REPLY_MSG}), 502
         record_id = save_audit_record("lc", lc_text[:200], lc_text, review)
         return jsonify({
             "success": True, "lc_text": lc_text, "audit_result": review,
@@ -475,6 +527,34 @@ def assistant_clear():
 
 
 # ---- History ----
+def _history_brief(input_type, audit_result, input_summary=""):
+    """给历史列表的每一行算一个"结论速览"：单据类型、编号、通不通过、几处问题。
+
+    口径直接复用 services.archive 的 count_issues / has_issue —— 全项目统计"发现问题"
+    只有这一个定义，列表上的红色数字才不会和档案页的统计对不上。
+    只对标准审核报告（有【发现问题】小节）给判定；信用证体检、对比报告的结构不同，
+    不硬套，verdict 留空，前端就只显示原来的类型徽标。
+    """
+    text = audit_result or ""
+    brief = {"doc_type": "", "ref": "", "issue_count": 0, "verdict": ""}
+    m = re.search(r"【单证类型】\s*([^\n]+)", text)
+    if m:
+        line = m.group(1).replace("**", "").strip()
+        brief["doc_type"] = doc_type_from_report(text)
+        ref = re.search(r"(?:发票号|Invoice\s*No\.?|编号)\s*[：:]?\s*([A-Za-z0-9][A-Za-z0-9\-_/]{2,30})", line)
+        if ref:
+            brief["ref"] = ref.group(1)
+    # 信用证体检没有"发票号"，用摘要里的信用证号当编号，否则一屏十条都叫"信用证体检"
+    if not brief["ref"] and input_type == "lc":
+        lc_no = re.search(r"信用证号\s*[：:]?\s*([A-Za-z0-9][A-Za-z0-9\-_/]{2,30})", input_summary or "")
+        if lc_no:
+            brief["ref"] = lc_no.group(1)
+    if "【发现问题】" in text and "【审核结论】" in text:
+        brief["issue_count"] = count_issues(text)
+        brief["verdict"] = "fail" if has_issue(text) else "pass"
+    return brief
+
+
 @main_bp.route("/api/history", methods=["GET"])
 def list_history():
     db = get_db()
@@ -482,7 +562,8 @@ def list_history():
     per_page = request.args.get("per_page", 20, type=int)
     # 只挡上限不挡负数时，per_page=-1 会让 SQLite 的 LIMIT -1 变成"返回全表"
     per_page = max(1, min(per_page, 100))
-    page = max(1, page)
+    # 上限也要挡：page 传个 20 位数，OFFSET 超出 SQLite 整数范围直接 500
+    page = max(1, min(page, 1000000))
     offset = (page - 1) * per_page
     q = as_text(request.args.get("q"))
     date_from = as_text(request.args.get("date_from"))
@@ -508,7 +589,8 @@ def list_history():
     ).fetchall()
     return jsonify({
         "items": [{"id": r["id"], "created_at": r["created_at"], "input_type": r["input_type"],
-                   "input_summary": r["input_summary"], "audit_preview": r["audit_result"][:300]} for r in rows],
+                   "input_summary": r["input_summary"], "audit_preview": r["audit_result"][:300],
+                   **_history_brief(r["input_type"], r["audit_result"], r["input_summary"])} for r in rows],
         "total": total,
         "page": page,
         "per_page": per_page,
@@ -730,6 +812,8 @@ def fix_doc():
     audit_result = _req_text(data.get("audit_result"))
     if not original or not audit_result:
         return jsonify({"error": "缺少原始内容或审核结果"}), 400
+    if len(original) + len(audit_result) > _AI_MAX_CHARS:
+        return jsonify({"error": "内容过长，请分段处理"}), 400
 
     url = Config.DEEPSEEK_BASE_URL.rstrip("/") + "/chat/completions"
     prompt = f"""以下是原始单证内容：
@@ -848,6 +932,8 @@ def practice_case_create():
     if not isinstance(rules, list):
         rules = []
     rules = [_req_text(r).upper() for r in rules if _req_text(r)]
+    # 去重保序：["R01", "r01"] 原来会存成两条，题目列表显示"要找 2 处"，判卷却按 1 处算
+    rules = list(dict.fromkeys(rules))
     # 只收规则表里真有的编号，别让手滑打进来的字符串污染判卷
     known = {r["id"] for r in AUDIT_RULES}
     unknown = [r for r in rules if r not in known]
@@ -896,6 +982,8 @@ def practice_draft():
 
     try:
         report = deepseek_audit(doc_text, lc_terms)
+        if _is_empty_reply(report):
+            return jsonify({"error": "AI 这次没有返回内容（多半是输出被截断），请重试。"}), 502
     except requests.RequestException as e:
         return jsonify({"error": "API 调用失败: %s" % str(e)}), 500
     except Exception:

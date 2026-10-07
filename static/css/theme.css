@@ -1,0 +1,23 @@
+/* ===== 配色主题 =====
+   默认是冷白钴蓝（app.css 里的 :root）。这里只放"另一套"：
+   用户在「设置 → 配色」里选，存在浏览器本地，<html data-theme="warm"> 在首次绘制前就设好。
+
+   只覆盖"品牌与底色"这一层变量。状态色（红=要改、琥珀=要复核、绿=通过）
+   在两套主题里保持不变 —— 它们承担的是语义，不是装饰，换了颜色用户就读不懂。
+
+   暖纸陶土的主色取 #A94F27 而不是视频里的 #C2683F：白字压在 #C2683F 上只有
+   3.9:1，达不到按钮文字要求的 4.5:1，压在 #A94F27 上是 5.5:1（已实际计算）。 */
+:root[data-theme="warm"] {
+    --bg: #F3F0E8;
+    --card: #FFFFFF;
+    --text: #1E1C18;
+    --text-secondary: #5E584D;
+    --text-muted: #7A7468;
+    --primary: #A94F27;
+    --primary-hover: #8E4120;
+    --primary-rgb: 169, 79, 39;
+    --border: #D8D2C4;
+    --border-light: #E8E3D6;
+    --zebra: #FAF8F3;
+    --stage: radial-gradient(ellipse at 50% 35%, #F8F5EE 0%, #E9E3D5 100%);
+}

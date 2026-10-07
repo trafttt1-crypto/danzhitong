@@ -51,11 +51,21 @@ def baidu_ocr(image_path):
     return "\n".join(words)
 
 
+# 扫描页（没有文字层、要走百度 OCR 的页）上限。每页一次付费调用，原来不设上限，
+# 传一份几百页的扫描件就是几百次调用、几分钟的等待。一套交单单据很少超过这个数
+MAX_OCR_PAGES = 20
+
+
 def pdf_ocr(pdf_path):
     """Extract text from PDF. Uses native text extraction first; falls back to OCR only for pages that yield no text."""
     doc = fitz.open(pdf_path)
     all_text = []
     try:
+        # 先数扫描页，超了直接拒（ValueError 由路由转成 400），不要 OCR 到一半才发现
+        scanned = sum(1 for page in doc if not page.get_text("text").strip())
+        if scanned > MAX_OCR_PAGES:
+            raise ValueError("这份 PDF 有 %d 页是扫描图片，超过单次上限 %d 页，请拆分后分批上传"
+                             % (scanned, MAX_OCR_PAGES))
         for page_num in range(len(doc)):
             page = doc[page_num]
             native_text = page.get_text("text").strip()

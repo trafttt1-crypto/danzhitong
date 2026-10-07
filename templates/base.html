@@ -5,11 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>外贸单证AI审核系统</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231D3AF0'/%3E%3Cpath d='M8 17l6 6 10-12' stroke='%23fff' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+    <link rel="preload" href="/static/fonts/LXGWWenKai-Greeting.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/static/css/app.css?v={{ asset_v('css/app.css') }}">
+    <link rel="stylesheet" href="/static/css/report.css?v={{ asset_v('css/report.css') }}">
+    <link rel="stylesheet" href="/static/css/graph.css?v={{ asset_v('css/graph.css') }}">
+    <link rel="stylesheet" href="/static/css/theme.css?v={{ asset_v('css/theme.css') }}">
     <script>
         // 导航选中态有两档（色块 / 竖条），用户在「设置」里切换。
         // 必须在首次绘制之前定好，否则会先画成色块、再跳成竖条，闪一下。
         try {
+            // 配色主题同理：必须在首次绘制前设好，否则暖色主题每次刷新都会先闪一下冷色
+            if (localStorage.getItem("dzt_theme") === "warm") {
+                document.documentElement.setAttribute("data-theme", "warm");
+            }
             if (localStorage.getItem("dzt_nav_style") === "bar") {
                 document.documentElement.setAttribute("data-nav-style", "bar");
             }
@@ -35,6 +43,7 @@
                 <button type="button" class="tab" data-tab="pdf">上传 PDF</button>
                 <button type="button" class="tab" data-tab="lcreview">信用证体检</button>
                 <button type="button" class="tab" data-tab="compare">多单证对比</button>
+                <button type="button" class="tab" data-tab="graph">一致性图</button>
                 {% if edition == 'edu' %}
                 <p class="nav-group-title">实训教学</p>
                 <button type="button" class="tab" data-tab="practice">实训练习</button>
@@ -56,6 +65,7 @@
                 <p class="foot-line">模型 <span class="foot-mono">{{ runtime.model }}</span></p>
                 <p class="foot-line">审核规则 {{ rule_series[0].count }} 条 · 审证规则 {{ rule_series[1].count }} 条</p>
                 <p class="foot-note">AI 结论仅供参考，以银行审单结论为准</p>
+                <p class="foot-ver">v{{ app_version }}</p>
             </div>
         </aside>
         <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
@@ -81,6 +91,9 @@
 
     <script src="/static/js/marked.min.js"></script>
     <script src="/static/js/cases.js?v={{ asset_v('js/cases.js') }}"></script>
+    <script src="/static/js/report_view.js?v={{ asset_v('js/report_view.js') }}"></script>
+    <script src="/static/js/busy.js?v={{ asset_v('js/busy.js') }}"></script>
     <script src="/static/js/app.js?v={{ asset_v('js/app.js') }}"></script>
+    <script src="/static/js/consistency.js?v={{ asset_v('js/consistency.js') }}"></script>
 </body>
 </html>

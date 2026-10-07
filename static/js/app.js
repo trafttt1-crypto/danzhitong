@@ -207,6 +207,38 @@ tabs.forEach(function (tab) {
     });
 });
 
+// ===== 报告里的规则编号：点一下跳到「审核规则」页并筛到那一条 =====
+// 用事件委托，因为报告是动态渲染的，每渲染一次都重新绑定会漏。
+// 规则页的条目没有 data-rule-id，就用 data-rule-text 的开头匹配
+// （模板里那一串是「编号 名称 严重度 依据 检查 修改 分类」，编号在头一个）。
+document.addEventListener("click", function (e) {
+    var t = e.target;
+    if (!t || !t.classList || !t.classList.contains("rpt-rule-link")) return;
+    var rid = t.dataset.ruleId;
+    if (!rid) return;
+    var tab = document.querySelector('.tab[data-tab="rules"]');
+    if (!tab) return;
+    tab.click();
+    var input = document.getElementById("rulesFilter");
+    if (input) {
+        input.value = rid;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    // 滚到那一条并闪一下。等一拍再做 —— 切页签是同步的，但条目刚被筛选过。
+    setTimeout(function () {
+        var item = Array.prototype.filter.call(
+            document.querySelectorAll("#tabRules .rule-item"),
+            function (el) { return (el.dataset.ruleText || "").indexOf(rid + " ") === 0; }
+        )[0];
+        if (!item) return;
+        item.scrollIntoView({ block: "center", behavior: "smooth" });
+        item.classList.remove("rule-flash");
+        void item.offsetWidth;      // 强制重排，连点同一条也能重放动画
+        item.classList.add("rule-flash");
+        setTimeout(function () { item.classList.remove("rule-flash"); }, 2700);
+    }, 80);
+});
+
 function restoreCurrentTabUI() {
     var showLc = (activeMode === "image" || activeMode === "text" || activeMode === "pdf");
     lcSection.style.display = showLc ? "block" : "none";
@@ -605,7 +637,7 @@ function addGoodsRow() {
         '<td><input type="number" class="goods-gw" value="0" step="0.1" min="0" style="width:72px"></td>' +
         '<td><input type="number" class="goods-nw" value="0" step="0.1" min="0" style="width:72px"></td>' +
         '<td><input type="number" class="goods-cbm" value="0" step="0.01" min="0" style="width:72px"></td>' +
-        '<td><button class="btn btn-secondary btn-sm btn-del-row" onclick="removeGoodsRow(this)">✕</button></td>';
+        '<td><button class="btn btn-secondary btn-sm btn-del-row" onclick="removeGoodsRow(this)" aria-label="删除此行" title="删除此行"><svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button></td>';
     document.getElementById("goodsTbody").appendChild(tr);
     recalcAll();
 }
@@ -896,18 +928,24 @@ function renderArchiveTable(rows) {
     var tbody = document.getElementById("archiveTbody");
     if (!Array.isArray(rows)) rows = [];
     if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="archive-empty">暂无档案记录</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="archive-empty">暂无档案记录</td></tr>';
         return;
     }
     tbody.innerHTML = rows.map(function (r) {
+        // 结论只对"上传审核"有意义；智能制单生成的单据没有审核结论
+        var verdict = r.operation_type === "上传审核"
+            ? (r.has_issue ? '<span class="ar-chip is-fail">有问题</span>' : '<span class="ar-chip is-pass">通过</span>')
+            : '<span class="ar-chip is-none">未审核</span>';
+        var t = String(r.created_at || "").replace(/:\d{2}$/, "");
         return '<tr onclick="showArchiveDetail(' + r.id + ')">' +
-            '<td>' + escapeHtml(r.invoice_no) + '</td>' +
+            '<td class="ar-no">' + escapeHtml(r.invoice_no || "—") + '</td>' +
+            '<td>' + verdict + '</td>' +
             '<td>' + escapeHtml(r.doc_type) + '</td>' +
             '<td>' + escapeHtml(r.shipper_name || '') + '</td>' +
             '<td>' + escapeHtml(r.consignee_name || '') + '</td>' +
             '<td>' + escapeHtml(r.goods_name || '') + '</td>' +
             '<td>' + (r.total_amount ? r.total_amount.toLocaleString() : '') + '</td>' +
-            '<td>' + (r.created_at || '') + '</td>' +
+            '<td class="ar-time">' + escapeHtml(t) + '</td>' +
             '<td>' + escapeHtml(r.operation_type || '') + '</td></tr>';
     }).join("");
 }
@@ -1373,12 +1411,31 @@ function renderHistory(records) {
         var div = document.createElement("div");
         div.className = "history-item";
         div.onclick = function () { showHistoryDetail(rec.id); };
+        // 结论速览：后端按报告算好的。没有判定（信用证体检等结构不同的报告）就只显示类型。
+        var status;
+        if (rec.verdict === "fail") {
+            status = '<span class="hi-status hi-fail">' + (rec.issue_count ? rec.issue_count + " 处问题" : "需修改") + "</span>";
+        } else if (rec.verdict === "pass") {
+            status = '<span class="hi-status hi-pass">通过</span>';
+        } else {
+            status = '<span class="hi-status hi-none">' + (labelMap[rec.input_type] || "记录") + "</span>";
+        }
+        var title = rec.doc_type || (rec.input_type === "lc" ? "信用证体检" : "审核记录");
+        // 2026-09-22 19:30:52 → 09-22 19:30（年份和秒在列表里是噪音，悬停仍能看到完整时间）
+        var shortTime = String(rec.created_at || "").replace(/^\d{4}-/, "").replace(/:\d{2}$/, "");
+        var summary = String(rec.input_summary || "").replace(/\s+/g, " ").trim();
         div.innerHTML =
+            status +
             '<div class="history-item-meta">' +
-            '<div class="history-item-time">' + rec.created_at + "</div>" +
-            '<div class="history-item-summary">' + escapeHtml(rec.input_summary) + "</div>" +
+            '<div class="hi-title">' + escapeHtml(title) +
+            (rec.ref ? '<span class="hi-ref">' + escapeHtml(rec.ref) + "</span>" : "") + "</div>" +
+            '<div class="history-item-summary">' + escapeHtml(summary) + "</div>" +
             "</div>" +
-            '<span class="history-item-badge ' + (badgeMap[rec.input_type] || "") + '">' + (labelMap[rec.input_type] || rec.input_type) + "</span>" +
+            '<div class="hi-side"><time title="' + escapeHtml(rec.created_at || "") + '">' + escapeHtml(shortTime) + "</time>" +
+            // 没有判定时左边的胶囊已经是类型了，右边不再重复一个
+            (rec.verdict
+                ? '<span class="history-item-badge ' + (badgeMap[rec.input_type] || "") + '">' + (labelMap[rec.input_type] || rec.input_type) + "</span>"
+                : "") + "</div>" +
             '<span class="history-item-arrow">&gt;</span>';
         historyList.appendChild(div);
     });
@@ -1523,8 +1580,15 @@ function stampTags(el) {
                 span.className = "rpt-tag rpt-sev rpt-sev-" + tok;
                 span.textContent = _SEVERITY_LABEL[tok] || tok;
             } else {
-                span.className = "rpt-tag rpt-rule";
+                // 规则编号做成可点的：点一下跳到「审核规则」页并筛到那一条。
+                // 指导老师的演示稿要的就是这个 ——「每一个结论，都不是黑箱」，
+                // 光靠旁白说不算，得让观众看见编号真的能查回条款。
+                span.className = "rpt-tag rpt-rule rpt-rule-link";
                 span.textContent = tok;
+                span.dataset.ruleId = tok;
+                span.setAttribute("role", "button");
+                span.setAttribute("tabindex", "0");
+                span.title = "查看这条规则的依据";
             }
             frag.appendChild(span);
             last = m.index + m[0].length;
@@ -1540,6 +1604,8 @@ function stampTags(el) {
 // 拆了就会凭空多出一个假标题，还把句子截断。
 function normalizeReportText(text) {
     return String(text)
+        // 「**【参考答案】**」这种加粗小标题：先剥掉外层 **，否则下面拆行会把 ** 留成两行孤零零的星号
+        .replace(/\*\*\s*(【[^】\n]{1,20}】[^*\n]*?)\s*\*\*/g, "$1")
         .replace(/(.)?[ \t]*【([^】\n]{1,20})】[ \t]*/g, function (whole, before, name) {
             // 前面紧跟着文字/数字 = 行内提及，原样保留
             if (before && /[一-鿿㐀-䶿A-Za-z0-9]/.test(before)) return whole;
@@ -1567,6 +1633,11 @@ function stampIssueNumber(el) {
 // 结论是"通过"还是"需修改"：先把否定式（未发现明显错误…）换成肯定语，
 // 否则"未发现明显错误"里的"错误"会被当成负面词
 function conclusionState(text) {
+    // 结论开头写明了判定词就以它为准，后半句里的"风险""需修改项"不能把它翻过来：
+    // "通过（…）：…未发现需修改项；仅日期时效需人工复核" 原来会被判成红色（实测 #67 #86）。
+    // 与 services/archive.py 的 _VERDICT_HEAD_RE 同一个口径
+    var head = String(text || "").replace(/\*\*/g, "").match(/^[\s\-#>]*(不通过|需修改|需修正|建议改证|通过|可接受)/);
+    if (head) return (head[1] === "通过" || head[1] === "可接受") ? "is-ok" : "is-bad";
     var t = text
         .replace(/未发现明显(错误|问题|异常|不利条款)/g, "○通过")
         .replace(/未发现(任何)?(错误|问题|异常|不利条款)/g, "○通过")
@@ -1635,8 +1706,19 @@ function decorateReport(box) {
 // 所以先转义再交给 marked：markdown 排版照常，脚本注入挡在门外。
 function renderMarkdown(text) {
     if (text === null || text === undefined) return "";
+    // 标准审核报告走结构化视图（结论横幅 + 问题卡片）；认不出格式就退回下面的 markdown 渲染
+    var normalized = normalizeReportText(text);
+    if (window.DZTReport) {
+        try {
+            var view = window.DZTReport.build(normalized);
+            if (view) return view;
+        } catch (e) { /* 解析出错不能让报告打不开，退回旧渲染 */ }
+    }
     var box = document.createElement("div");
-    box.innerHTML = marked.parse(escapeHtml(normalizeReportText(text)));
+    // 中文里「**要求：**找出」这种写法，按 CommonMark 规则结束符前是标点、后面紧跟文字，不算加粗，
+    // 会原样露出星号。先在转义后的文本上把成对的 ** 换成 <strong>（此时已无用户 HTML，插入的标签是安全的）
+    var safe = escapeHtml(normalized).replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>");
+    box.innerHTML = marked.parse(safe);
     decorateReport(box);
     return box.innerHTML;
 }
@@ -1672,6 +1754,7 @@ btnRetry.addEventListener("click", function () {
         pdf: "上传 PDF",
         lcreview: "信用证体检",
         compare: "多单证对比",
+        graph: "一致性图",
         practice: "实训练习",
         history: "历史记录",
         archive: "档案管理",
@@ -1686,6 +1769,8 @@ btnRetry.addEventListener("click", function () {
     tabs.forEach(function (tab) {
         tab.addEventListener("click", function () {
             topbarModule.textContent = "当前：" + (MODULE_NAMES[this.dataset.tab] || "");
+            // 浏览器标签页标题跟着变：多开几个标签页、或从历史里找回时分得清
+            document.title = (MODULE_NAMES[this.dataset.tab] ? MODULE_NAMES[this.dataset.tab] + " - " : "") + "单智通";
             document.body.classList.remove("nav-open");
         });
     });
@@ -1737,6 +1822,7 @@ btnRetry.addEventListener("click", function () {
 
     var sending = false;
     var loadingEl = null;
+    var chatBusyStop = null;
     var currentThreadId = null; // null = 新对话（尚未创建）
 
     function scrollBottom() { chatScroll.scrollTop = chatScroll.scrollHeight; }
@@ -1795,7 +1881,10 @@ btnRetry.addEventListener("click", function () {
         loadingEl.className = "chat-msg assistant";
         var bubble = document.createElement("div");
         bubble.className = "chat-bubble chat-loading";
-        bubble.innerHTML = '<span class="chat-spinner"></span><span>' + escapeHtml(label) + '</span>';
+        bubble.innerHTML = '<span class="busy-glyph-wrap">' + DZTBusy.glyph() + '</span>'
+            + '<span class="busy-verb"></span><span class="busy-time"></span>';
+        chatBusyStop = DZTBusy.run(bubble.querySelector(".busy-verb"), bubble.querySelector(".busy-time"),
+            { verbs: DZTBusy.verbsFor("chat") });
         loadingEl.appendChild(bubble);
         chatList.appendChild(loadingEl);
         updateEmpty();
@@ -1803,6 +1892,7 @@ btnRetry.addEventListener("click", function () {
     }
 
     function hideLoading() {
+        if (chatBusyStop) { chatBusyStop(); chatBusyStop = null; }
         if (loadingEl) { loadingEl.remove(); loadingEl = null; }
     }
 
@@ -1956,18 +2046,6 @@ btnRetry.addEventListener("click", function () {
             })
             .catch(function () { alert("清空失败，请重试"); });
     });
-
-    // 按时段更换问候语（每次刷新随机取该时段的一句）
-    if (homeTitle) {
-        var hour = new Date().getHours();
-        var pool;
-        if (hour >= 5 && hour < 11) pool = ["早上好，今天想审点什么？", "早上好，先审两单提提神"];
-        else if (hour >= 11 && hour < 14) pool = ["中午好，抽空审一单？", "午休时间，有单证要审吗"];
-        else if (hour >= 14 && hour < 18) pool = ["下午好，今天想审点什么？", "下午好，手头有单证要审吗"];
-        else if (hour >= 18 && hour < 23) pool = ["晚上好，今天想审点什么？", "晚上好，审完这单就收工"];
-        else pool = ["夜深了，还在盯单子？", "夜深了，有单证要审吗"];
-        homeTitle.textContent = pool[Math.floor(Math.random() * pool.length)];
-    }
 
     updateEmpty(); // 初始空状态：把输入条摆进中央
 
@@ -2197,6 +2275,7 @@ btnRetry.addEventListener("click", function () {
         stepOcr.querySelector(".step-label").textContent = hasFile ? "识别信用证" : "跳过识别";
         stepAi.className = "step active";
         stepAi.querySelector(".step-label").textContent = "审证分析中";
+        loadingText.textContent = hasFile ? "正在识别并分析信用证…" : "正在分析信用证…";
     }
 
     function finishLoading() {
@@ -2793,4 +2872,172 @@ btnRetry.addEventListener("click", function () {
     });
 
     loadCases();
+})();
+
+// ===== 首页工作台：统一投放区 + 快捷入口 + 最近审核 =====
+(function () {
+    var drop = document.getElementById("homeDrop");
+    var fileInput = document.getElementById("homeFile");
+    var links = document.getElementById("homeLinks");
+    var recent = document.getElementById("homeRecent");
+    var recentList = document.getElementById("homeRecentList");
+    if (!drop || !links) return;
+
+    // 快捷入口只是侧栏页签的快捷方式：点哪个就等于点侧栏里对应那一项，
+    // 这样页签切换、恢复上次状态等逻辑都不用再写一遍
+    function goTab(name) {
+        var tab = document.querySelector('.tab[data-tab="' + name + '"]');
+        if (tab) tab.click();
+    }
+    document.getElementById("homeRecent").addEventListener("click", function (e) {
+        var btn = e.target.closest("[data-go]");
+        if (btn) goTab(btn.dataset.go);
+    });
+    links.addEventListener("click", function (e) {
+        var btn = e.target.closest("[data-go]");
+        if (btn) goTab(btn.dataset.go);
+    });
+
+    // 一个投放区收图片和 PDF：按类型分流到原来的两个上传页，复用它们的校验与预览。
+    // 先切页签（会复位上传区），再交文件，顺序不能反。
+    function route(file) {
+        if (!file) return;
+        var isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+        if (isPdf) { goTab("pdf"); handlePdfFile(file); }
+        else { goTab("image"); handleImageFile(file); }
+    }
+    drop.addEventListener("click", function () { fileInput.click(); });
+    drop.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+    });
+    fileInput.addEventListener("change", function () { route(fileInput.files[0]); fileInput.value = ""; });
+    drop.addEventListener("dragover", function (e) { e.preventDefault(); drop.classList.add("drag-over"); });
+    drop.addEventListener("dragleave", function () { drop.classList.remove("drag-over"); });
+    drop.addEventListener("drop", function (e) {
+        e.preventDefault();
+        drop.classList.remove("drag-over");
+        route(e.dataTransfer.files[0]);
+    });
+
+    // 没有单据的人（评委、新用户）最需要这个：一键把样例填进「粘贴文字」
+    var sampleBtn = document.getElementById("btnTrySample");
+    if (sampleBtn) {
+        sampleBtn.addEventListener("click", function () {
+            goTab("text");
+            var item = window.TEACHING_CASES && window.TEACHING_CASES[0];
+            if (item && textInput) textInput.value = item.text;
+            var auditBtn = document.getElementById("btnAuditText");
+            if (auditBtn) auditBtn.focus();
+        });
+    }
+
+    // 最近审核：直接读真实记录。没有记录就整块不显示，不放占位假数据。
+    function loadRecent() {
+        if (!recent || !recentList) return;
+        fetch("/api/history?per_page=5")
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                var items = (d && d.items) || [];
+                if (!items.length) { recent.hidden = true; return; }
+                recentList.innerHTML = items.map(function (rec) {
+                    var st = rec.verdict === "fail"
+                        ? '<span class="hr-st is-fail">' + (rec.issue_count ? rec.issue_count + " 处问题" : "需修改") + "</span>"
+                        : rec.verdict === "pass"
+                            ? '<span class="hr-st is-pass">通过</span>'
+                            : '<span class="hr-st is-none">' + (rec.input_type === "lc" ? "信用证体检" : "记录") + "</span>";
+                    var title = rec.doc_type || (rec.input_type === "lc" ? "信用证体检" : "审核记录");
+                    var time = String(rec.created_at || "").replace(/^\d{4}-/, "").replace(/:\d{2}$/, "");
+                    return '<li class="hr-item" tabindex="0" data-id="' + rec.id + '">' + st +
+                        '<span class="hr-title">' + escapeHtml(title) +
+                        (rec.ref ? '<span class="hr-ref">' + escapeHtml(rec.ref) + "</span>" : "") + "</span>" +
+                        '<span class="hr-time">' + escapeHtml(time) + "</span></li>";
+                }).join("");
+                recent.hidden = false;
+            })
+            .catch(function () { recent.hidden = true; });
+    }
+    function openRecord(li) {
+        if (!li) return;
+        goTab("history");
+        showHistoryDetail(parseInt(li.dataset.id, 10));
+    }
+    recentList.addEventListener("click", function (e) { openRecord(e.target.closest(".hr-item")); });
+    recentList.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") openRecord(e.target.closest(".hr-item"));
+    });
+    loadRecent();
+})();
+
+// ===== 设置页：配色主题 =====
+// 与导航样式同一套机制：选择存 localStorage，<html data-theme> 由 base.html 头部在首次绘制前设好。
+// 这里只负责点击切换、同步按钮的选中态。
+(function () {
+    var KEY = "dzt_theme";
+    var box = document.getElementById("themePicker");
+    if (!box) return;
+    var opts = box.querySelectorAll(".theme-opt");
+
+    function current() {
+        try { return localStorage.getItem(KEY) === "warm" ? "warm" : "cool"; }
+        catch (e) { return "cool"; }       // 隐私模式下 localStorage 会抛，用默认主题
+    }
+    function apply(theme) {
+        if (theme === "warm") document.documentElement.setAttribute("data-theme", "warm");
+        else document.documentElement.removeAttribute("data-theme");
+        opts.forEach(function (o) {
+            o.setAttribute("aria-pressed", o.dataset.themeValue === theme ? "true" : "false");
+        });
+    }
+    opts.forEach(function (o) {
+        o.addEventListener("click", function () {
+            var theme = o.dataset.themeValue;
+            try { localStorage.setItem(KEY, theme); } catch (e) { /* 存不下就只当次生效 */ }
+            apply(theme);
+        });
+    });
+    apply(current());
+})();
+
+// ===== 交单方式切换（图片 / PDF / 文字）：侧栏页签的快捷方式 =====
+document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest(".intake-switch [data-go]");
+    if (!btn || btn.classList.contains("is-on")) return;
+    var tab = document.querySelector('.tab[data-tab="' + btn.dataset.go + '"]');
+    if (tab) tab.click();
+});
+
+
+// ===== 首页问候语 + 设置里的「称呼」=====
+// 按时段说一句，不猜用户的状态（不写"还在盯单子？"这类）。
+// 填了称呼就接在后面："晚上好，小王"。称呼只存 localStorage，不上传。
+(function () {
+    var KEY = "dzt_name";
+    var greetEl = document.getElementById("homeGreeting");
+    var nameInput = document.getElementById("userNameInput");
+
+    function getName() {
+        try { return (localStorage.getItem(KEY) || "").trim(); } catch (e) { return ""; }
+    }
+    function timeWord() {
+        var h = new Date().getHours();
+        if (h >= 5 && h < 11) return "早上好";
+        if (h >= 11 && h < 13) return "中午好";
+        if (h >= 13 && h < 18) return "下午好";
+        if (h >= 18 && h < 23) return "晚上好";
+        return "夜深了";
+    }
+    function render() {
+        if (!greetEl) return;
+        var name = getName();
+        greetEl.textContent = timeWord() + (name ? "，" + name : "");   // textContent：称呼里有尖括号也不会被当 HTML
+    }
+    render();
+
+    if (nameInput) {
+        nameInput.value = getName();
+        nameInput.addEventListener("input", function () {
+            try { localStorage.setItem(KEY, nameInput.value.trim()); } catch (e) { /* 存不下就只当次生效 */ }
+            render();
+        });
+    }
 })();

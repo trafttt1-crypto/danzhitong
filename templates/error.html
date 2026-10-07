@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ title }} - 单智通</title>
+<link rel="stylesheet" href="/static/css/app.css?v={{ asset_v('css/app.css') }}">
+<script>
+    try {
+        var t = localStorage.getItem("dzt_theme");
+        if (t === "warm") document.documentElement.setAttribute("data-theme", "warm");
+    } catch (e) {}
+</script>
+<style>
+    html, body { height: 100%; }
+    body {
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg);
+        color: var(--text);
+    }
+    .err-box {
+        width: 420px;
+        max-width: calc(100vw - 32px);
+        padding: 44px 36px 36px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+    }
+    .err-code {
+        margin: 0;
+        font-size: 3.25rem;
+        font-weight: 800;
+        line-height: 1;
+        color: var(--primary);
+        font-variant-numeric: tabular-nums;
+    }
+    .err-title { margin: 14px 0 6px; font-size: 1.25rem; font-weight: 800; }
+    .err-msg { margin: 0 0 26px; font-size: 0.875rem; line-height: 1.75; color: var(--text-secondary); }
+    .err-actions { display: flex; gap: 10px; }
+    .err-foot { margin: 26px 0 0; font-size: 0.75rem; color: var(--text-muted); }
+</style>
+</head>
+<body>
+    <div class="err-box">
+        <p class="err-code">{{ code }}</p>
+        <h1 class="err-title">{{ title }}</h1>
+        <p class="err-msg">{{ message }}</p>
+        <div class="err-actions">
+            <a class="btn btn-primary" href="/">返回首页</a>
+            <a class="btn btn-secondary" href="javascript:history.back()">返回上一页</a>
+        </div>
+        <p class="err-foot">单智通 v{{ app_version }}</p>
+    </div>
+</body>
+</html>

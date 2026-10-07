@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>单智通 - 访问口令</title>
 <link rel="stylesheet" href="/static/css/app.css?v={{ asset_v('css/app.css') }}">
+<link rel="stylesheet" href="/static/css/theme.css?v={{ asset_v('css/theme.css') }}">
+<script>
+    try {
+        if (localStorage.getItem("dzt_theme") === "warm") document.documentElement.setAttribute("data-theme", "warm");
+    } catch (e) {}
+</script>
 <style>
     html, body { height: 100%; }
     body {
@@ -17,10 +23,12 @@
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
     }
     .login-box {
-        width: 340px;
-        padding: 36px 32px 32px;
+        width: 360px;
+        max-width: calc(100vw - 32px);
+        padding: 40px 34px 34px;
         background: #FFFFFF;
         border: 1px solid var(--border);
+        border-radius: 6px;
     }
     .login-brand {
         font-family: "Smiley Sans", sans-serif;
@@ -42,14 +50,15 @@
         color: var(--text);
         background: #FFFFFF;
         border: 1px solid var(--border);
-        border-radius: 0;
+        border-radius: 6px;
         outline: none;
     }
-    .login-input:focus { border-color: var(--primary); }
+    .login-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(29, 58, 240, .12); }
     .login-btn {
         width: 100%;
         margin-top: 14px;
-        border-radius: 0;
+        padding: 11px 0;
+        border-radius: 6px;
     }
     .login-error {
         margin: 0 0 14px;
@@ -59,6 +68,7 @@
         background: #FFF3F0;
         border-left: 3px solid var(--danger, #FF4319);
     }
+    .login-ver { display: block; margin-top: 6px; font-variant-numeric: tabular-nums; }
     .login-foot {
         margin: 22px 0 0;
         font-size: 0.75rem;
@@ -81,7 +91,7 @@
             <button class="btn btn-primary login-btn" type="submit">进入</button>
         </form>
 
-        <p class="login-foot">口令由部署者设置，写在项目根目录 .env 的 DZT_ACCESS_PASSWORD 里。</p>
+        <p class="login-foot">没有访问口令？请向系统管理员索取。<span class="login-ver">v{{ app_version }}</span></p>
     </div>
 </body>
 </html>

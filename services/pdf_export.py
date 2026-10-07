@@ -18,6 +18,14 @@ logger = logging.getLogger(__name__)
 _FONT_DIRS = [
     Config.FONT_PATH,                          # 1) Project fonts/ folder
     "/usr/share/fonts/truetype",               # 2) Linux
+    # Ubuntu/Debian 的字体包都装在子目录里（apt install fonts-wqy-microhei →
+    # /usr/share/fonts/truetype/wqy/wqy-microhei.ttc），这里不递归，子目录要逐个列出；
+    # 漏了的话服务器上导出的 PDF 中文全是方框
+    "/usr/share/fonts/truetype/wqy",
+    "/usr/share/fonts/truetype/dejavu",
+    "/usr/share/fonts/truetype/liberation",
+    "/usr/share/fonts/opentype/noto",
+    "/usr/share/fonts/truetype/noto",
     "/usr/share/fonts",                        #    Linux fallback
     "/usr/local/share/fonts",                  #    Linux manual installs
     "/Library/Fonts",                          # 3) macOS

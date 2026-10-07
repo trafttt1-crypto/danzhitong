@@ -15,13 +15,34 @@
                 <div class="chat-col">
                     <div class="chat-scroll" id="chatScroll">
                         <div class="chat-empty" id="chatEmpty">
-                            <h1 class="home-title rise" id="homeTitle">今天想审点什么？</h1>
-                            <p class="home-sub rise rise-2" id="homeSub">问我系统里的事：审了多少、错了几个、发现了哪些问题</p>
+                            <h1 class="home-title rise" id="homeTitle"><span id="homeGreeting">你好</span></h1>
+                            <p class="home-sub rise rise-2" id="homeSub">把单据交给我，审完的每条结论都能对应到具体的规则和条款</p>
+                            <div class="home-drop rise rise-3" id="homeDrop" tabindex="0" role="button" aria-label="选择或拖入单据文件">
+                                <p class="hd-main">把单据拖到这里，或点击选择文件</p>
+                                <p class="hd-sub">图片（JPG、PNG）或 PDF，单个不超过 10MB；图片和 PDF 会自动识别</p>
+                                <input type="file" id="homeFile" accept=".jpg,.jpeg,.png,.pdf" hidden>
+                            </div>
+                            <p class="home-alt rise rise-3" id="homeLinks">
+                                <button type="button" class="home-link" data-go="text">粘贴文字</button>
+                                <button type="button" class="home-link" id="btnTrySample">用一份样例试试</button>
+                                <span class="home-link-sep" aria-hidden="true"></span>
+                                <button type="button" class="home-link" data-go="lcreview">信用证体检</button>
+                                <button type="button" class="home-link" data-go="generate">智能制单</button>
+                                <button type="button" class="home-link" data-go="compare">多单证对比</button>
+                                <button type="button" class="home-link" data-go="graph">一致性图</button>
+                            </p>
+                            <section class="home-recent rise rise-4" id="homeRecent" hidden>
+                                <div class="hr-head">
+                                    <h2>最近审核</h2>
+                                    <button type="button" class="home-link" data-go="history">全部记录</button>
+                                </div>
+                                <ol class="hr-list" id="homeRecentList"></ol>
+                            </section>
                         </div>
                         <div class="chat-list" id="chatList"></div>
                     </div>
                     <form class="home-composer" id="homeComposer">
-                        <textarea id="homeInput" rows="1" placeholder="问我：今天审了几份？发现了哪些问题？" autocomplete="off"></textarea>
+                        <textarea id="homeInput" rows="1" placeholder="或者直接问我：今天审了几份？发现了哪些问题？" autocomplete="off"></textarea>
                         <button type="submit" class="home-send" aria-label="发送">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="12" y1="19" x2="12" y2="5"/>
@@ -35,6 +56,12 @@
 
         <!-- ===== Tab 1: Image Upload ===== -->
         <section class="tab-content" id="tabImage">
+            <div class="intake-switch" role="group" aria-label="交单方式">
+                <span class="isw-label">单据形式</span>
+                <button type="button" class="isw-btn is-on" data-go="image" aria-current="page">图片</button>
+                <button type="button" class="isw-btn" data-go="pdf">PDF</button>
+                <button type="button" class="isw-btn" data-go="text">文字</button>
+            </div>
             <div class="upload-area" id="uploadAreaImage" tabindex="0" role="button" aria-label="选择图片文件上传">
                 <div class="upload-icon">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#8A8A85" stroke-width="1.5">
@@ -47,6 +74,25 @@
                 <p class="upload-hint">支持 JPG、PNG 格式，单张不超过 10MB</p>
                 <input type="file" id="fileInputImage" accept=".jpg,.jpeg,.png" hidden>
             </div>
+            <div class="upload-guide">
+                <div class="ug-col">
+                    <h4>上传前看一眼</h4>
+                    <ul>
+                        <li>单据完整入镜，四边不要裁掉</li>
+                        <li>文字清晰，避免反光、阴影和倾斜</li>
+                        <li>一次审一份；要互相核对多份，用「多单证对比」</li>
+                    </ul>
+                </div>
+                <div class="ug-col">
+                    <h4>审完你会得到</h4>
+                    <ul>
+                        <li>通过还是需修改，一眼看清</li>
+                        <li>每个问题的位置、原因和修改建议</li>
+                        <li>规则编号可点开，对应到具体条款</li>
+                        <li>可导出 PDF 报告和银行用的不符点清单</li>
+                    </ul>
+                </div>
+            </div>
             <div class="preview-area" id="previewAreaImage" style="display:none">
                 <img id="previewImage" alt="preview">
                 <div class="preview-actions">
@@ -58,6 +104,12 @@
 
         <!-- ===== Tab 2: Text Input ===== -->
         <section class="tab-content" id="tabText">
+            <div class="intake-switch" role="group" aria-label="交单方式">
+                <span class="isw-label">单据形式</span>
+                <button type="button" class="isw-btn" data-go="image">图片</button>
+                <button type="button" class="isw-btn" data-go="pdf">PDF</button>
+                <button type="button" class="isw-btn is-on" data-go="text" aria-current="page">文字</button>
+            </div>
             <div class="text-input-area">
                 {% if edition == 'edu' %}
                 <p class="text-input-hint">将单证文字内容粘贴到下方，或载入教学案例练习（报关单、发票、装箱单等）</p>
@@ -86,6 +138,12 @@
 
         <!-- ===== Tab 3: PDF Upload ===== -->
         <section class="tab-content" id="tabPdf">
+            <div class="intake-switch" role="group" aria-label="交单方式">
+                <span class="isw-label">单据形式</span>
+                <button type="button" class="isw-btn" data-go="image">图片</button>
+                <button type="button" class="isw-btn is-on" data-go="pdf" aria-current="page">PDF</button>
+                <button type="button" class="isw-btn" data-go="text">文字</button>
+            </div>
             <div class="upload-area" id="uploadAreaPdf" tabindex="0" role="button" aria-label="选择PDF文件上传">
                 <div class="upload-icon">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#8A8A85" stroke-width="1.5">
@@ -99,6 +157,25 @@
                 <p class="upload-text">拖拽PDF到此处，或 <span class="browse-link">点击浏览</span></p>
                 <p class="upload-hint">支持 PDF 格式，不超过 10MB</p>
                 <input type="file" id="fileInputPdf" accept=".pdf" hidden>
+            </div>
+            <div class="upload-guide">
+                <div class="ug-col">
+                    <h4>上传前看一眼</h4>
+                    <ul>
+                        <li>一个 PDF 放一份单据，不超过 10MB</li>
+                        <li>要互相核对多份，用「多单证对比」</li>
+                        <li>有信用证条款的话，在下方展开填写，可做交叉核查</li>
+                    </ul>
+                </div>
+                <div class="ug-col">
+                    <h4>审完你会得到</h4>
+                    <ul>
+                        <li>通过还是需修改，一眼看清</li>
+                        <li>每个问题的位置、原因和修改建议</li>
+                        <li>规则编号可点开，对应到具体条款</li>
+                        <li>可导出 PDF 报告和银行用的不符点清单</li>
+                    </ul>
+                </div>
             </div>
             <div class="preview-area" id="previewAreaPdf" style="display:none">
                 <div class="pdf-preview-info">
@@ -588,7 +665,7 @@
                                 <td><input type="number" class="goods-gw" value="0" step="0.1" min="0" style="width:72px"></td>
                                 <td><input type="number" class="goods-nw" value="0" step="0.1" min="0" style="width:72px"></td>
                                 <td><input type="number" class="goods-cbm" value="0" step="0.01" min="0" style="width:72px"></td>
-                                <td><button class="btn btn-secondary btn-sm btn-del-row" onclick="removeGoodsRow(this)">✕</button></td>
+                                <td><button class="btn btn-secondary btn-sm btn-del-row" onclick="removeGoodsRow(this)" aria-label="删除此行" title="删除此行"><svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button></td>
                             </tr>
                         </tbody>
                         <tfoot>
@@ -708,17 +785,18 @@
                     <thead>
                         <tr>
                             <th class="sortable" data-sort="invoice_no">发票号 ▾</th>
+                            <th>结论</th>
                             <th>单证类型</th>
                             <th>发货人</th>
                             <th>收货人</th>
                             <th>货物品名</th>
                             <th class="sortable" data-sort="total_amount">金额 ▾</th>
                             <th class="sortable" data-sort="created_at">时间 ▾</th>
-                            <th>操作</th>
+                            <th>来源</th>
                         </tr>
                     </thead>
                     <tbody id="archiveTbody">
-                        <tr><td colspan="8" class="archive-empty">暂无档案记录</td></tr>
+                        <tr><td colspan="9" class="archive-empty">暂无档案记录</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -954,6 +1032,34 @@
                 </div>
                 <div class="setting-row">
                     <div class="setting-label">
+                        <p class="setting-name">称呼</p>
+                        <p class="setting-desc">
+                            选填。填了之后首页会这样问候你：「晚上好，你的称呼」。只保存在本机浏览器中。
+                        </p>
+                    </div>
+                    <input type="text" class="setting-input" id="userNameInput" maxlength="12"
+                           placeholder="例如：小王" autocomplete="off" aria-label="称呼">
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <p class="setting-name">配色</p>
+                        <p class="setting-desc">
+                            冷白钴蓝清爽利落；暖纸陶土更柔和，适合长时间阅读报告。选择会保留在本机浏览器中，立即生效。
+                        </p>
+                    </div>
+                    <div class="theme-picker" id="themePicker" role="group" aria-label="配色">
+                        <button type="button" class="theme-opt" data-theme-value="cool" aria-pressed="true">
+                            <span class="theme-swatch theme-swatch-cool" aria-hidden="true"><i></i><i></i><i></i></span>
+                            <span class="theme-name">冷白钴蓝</span>
+                        </button>
+                        <button type="button" class="theme-opt" data-theme-value="warm" aria-pressed="false">
+                            <span class="theme-swatch theme-swatch-warm" aria-hidden="true"><i></i><i></i><i></i></span>
+                            <span class="theme-name">暖纸陶土</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
                         <p class="setting-name">导航选中样式</p>
                         <p class="setting-desc">
                             切换左侧导航栏中当前项的高亮方式。两档均符合本系统的视觉规范，按个人阅读习惯选择即可，选择会保留在本机浏览器中。
@@ -973,7 +1079,8 @@
                 </div>
                 <table class="setting-table">
                     <tbody>
-                        <tr><th>版本</th><td>{{ runtime.edition }}</td></tr>
+                        <tr><th>软件版本</th><td>v{{ app_version }}（{{ release_date }}）</td></tr>
+                        <tr><th>产品形态</th><td>{{ runtime.edition }}</td></tr>
                         <tr><th>模型</th><td class="mono">{{ runtime.model }}</td></tr>
                         <tr><th>接口地址</th><td class="mono">{{ runtime.base_url }}</td></tr>
                         <tr><th>单文件上限</th><td>{{ runtime.max_upload_mb }} MB</td></tr>
@@ -1008,9 +1115,71 @@
                 <div class="gen-card-head">
                     <span class="gen-card-title">关于</span>
                 </div>
-                <p class="doc-p">单智通 · 外贸单证 AI 审核系统</p>
+                <div class="about-head">
+                    <div>
+                        <p class="about-name">单智通 <span class="about-ver">v{{ app_version }}</span></p>
+                        <p class="about-sub">外贸单证 AI 审核系统 · {{ runtime.edition }} · 发布于 {{ release_date }}</p>
+                    </div>
+                </div>
                 <p class="doc-p">
                     本系统的全部输出均为辅助性意见，不构成付款承诺或法律意见；单证是否相符，最终以银行审单结论为准。
+                </p>
+            </div>
+
+            <div class="gen-card">
+                <div class="gen-card-head">
+                    <span class="gen-card-title">更新日志</span>
+                </div>
+                <div class="changelog">
+                    {% for rel in changelog %}
+                    <details class="cl-entry"{% if loop.first %} open{% endif %}>
+                        <summary>
+                            <span class="cl-ver">v{{ rel.version }}</span>
+                            <span class="cl-title">{{ rel.title }}</span>
+                            <span class="cl-date">{{ rel.date }}</span>
+                        </summary>
+                        <ul class="cl-items">
+                            {% for it in rel["items"] %}<li>{{ it }}</li>{% endfor %}
+                        </ul>
+                    </details>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== Tab: 单证一致性图 ===== -->
+        <section class="tab-content" id="tabGraph">
+            <div class="page-intro">
+                <h2 class="page-title">单证一致性图</h2>
+                <p class="page-sub">银行审单看的是「单证相符、单单相符」。把信用证、发票、装箱单、提单的文字分别贴进来，同一个字段会排在同一行，对得上连绿线，对不上连红线。</p>
+            </div>
+
+            <div class="cg-slots" id="cgSlots"></div>
+            <div class="cg-error" id="cgError" hidden></div>
+            <div class="cg-actions">
+                <button type="button" class="btn btn-primary" id="cgRun">生成一致性图</button>
+                <button type="button" class="btn btn-secondary" id="cgAdd">再加一份</button>
+                <button type="button" class="btn btn-secondary" id="cgSample">载入一套样例</button>
+                <button type="button" class="btn btn-secondary" id="cgClear">清空</button>
+            </div>
+
+            <div class="cg-result" id="cgResult" hidden>
+                <div class="cg-top">
+                    <div class="cg-summary" id="cgSummary"></div>
+                    <div class="cg-legend" aria-label="图例">
+                        <span class="cg-lg is-ok"><i></i><span>一致</span></span>
+                        <span class="cg-lg is-near"><i></i><span>近似（疑似拼写差异）</span></span>
+                        <span class="cg-lg is-conflict"><i></i><span>不一致</span></span>
+                        <span class="cg-lg is-none"><i></i><span>未提取，不连线</span></span>
+                    </div>
+                </div>
+                <div class="cg-scroll" id="cgScroll"></div>
+                <div id="cgCoverage"></div>
+                <div class="cg-issues" id="cgIssues"></div>
+                <p class="cg-foot">
+                    这张图由代码按字段比对生成，不调用 AI：同样的单证永远得到同样的图，每条线都能对着原文核实。
+                    字段是从原文的「标签：值」里抽的，看着不可信的值会显示为灰色「—」而不是猜一个；但标签写得不规范时仍可能抽错，请对着原件核实。
+                    发票金额不超过信用证金额即视为一致（UCP600 第 18 条 b 款）。图只比对字段是否对得上，不代替逐条规则审核。
                 </p>
             </div>
         </section>
@@ -1111,9 +1280,13 @@
         <!-- Loading -->
         <section class="loading-section" id="loadingSection" style="display:none">
             <div class="loading-card">
-                <div class="spinner"></div>
-                <p class="loading-text" id="loadingText">正在 OCR 识别中...</p>
-                <div class="progress-steps">
+                <div class="busy-line" aria-hidden="true">
+                    <span class="busy-glyph-wrap" id="busyGlyph"></span>
+                    <span class="busy-verb" id="busyVerb"></span>
+                    <span class="busy-time" id="busyTime"></span>
+                </div>
+                <p class="loading-text" id="loadingText" role="status" aria-live="polite">正在 OCR 识别中...</p>
+                <div class="progress-steps" hidden>
                     <div class="step" id="stepOcr">
                         <span class="step-dot"></span>
                         <span class="step-label">OCR 文字识别</span>

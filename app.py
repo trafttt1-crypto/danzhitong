@@ -8,6 +8,7 @@ from collections import defaultdict
 from flask import Flask, request, jsonify, session, redirect, render_template
 
 from config.settings import Config, check_env_vars
+from config.version import VERSION, RELEASE_DATE, PRODUCT_NAME, CHANGELOG
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,17 @@ class RateLimiter:
             self._clients[ip].append(now)
             return True
 
+    def is_blocked(self, ip):
+        """只查不记：登录只在输错时才记一次，查询本身不该占名额。"""
+        now = time.time()
+        with self._lock:
+            self._clients[ip] = [t for t in self._clients[ip] if now - t < self.window_seconds]
+            return len(self._clients[ip]) >= self.max_requests
+
+    def record(self, ip):
+        with self._lock:
+            self._clients[ip].append(time.time())
+
     def cleanup(self):
         """Periodic cleanup of stale entries."""
         now = time.time()
@@ -45,6 +57,23 @@ class RateLimiter:
                 del self._clients[ip]
 
 limiter = RateLimiter(Config.RATE_LIMIT, Config.RATE_WINDOW)
+# 口令输错 10 次锁 5 分钟。原来 /login 不在限流范围内，开了隧道就能一直猜
+login_limiter = RateLimiter(10, 300)
+
+
+def client_ip():
+    """来访者 IP。
+
+    经 cloudflared 隧道进来的请求，remote_addr 全是本机 127.0.0.1，所有人共用一个限流名额。
+    只有请求确实来自本机（也就是本机上的 cloudflared）时才采信它带的 CF-Connecting-IP；
+    局域网直连的请求不认这个头，免得别人伪造头绕过限流。
+    """
+    addr = request.remote_addr or "127.0.0.1"
+    if addr in ("127.0.0.1", "::1"):
+        forwarded = (request.headers.get("CF-Connecting-IP") or "").strip()
+        if forwarded:
+            return forwarded[:64]
+    return addr
 
 
 def create_app():
@@ -87,7 +116,8 @@ def create_app():
     if Config.ACCESS_PASSWORD:
         @app.before_request
         def require_login():
-            if request.path.startswith("/static/") or request.path in ("/login", "/logout"):
+            # /healthz 只回状态和版本号，给监控与部署脚本探活用，不带任何业务数据
+            if request.path.startswith("/static/") or request.path in ("/login", "/logout", "/healthz"):
                 return None
             if session.get("dzt_ok"):
                 return None
@@ -99,9 +129,16 @@ def create_app():
         def login():
             error = ""
             if request.method == "POST":
-                if secrets.compare_digest(request.form.get("password") or "", Config.ACCESS_PASSWORD):
+                ip = client_ip()
+                if login_limiter.is_blocked(ip):
+                    return render_template("login.html", error="口令输错次数过多，请 5 分钟后再试"), 429
+                # 按字节比：compare_digest 遇到含中文的字符串会直接抛 TypeError，
+                # 输入法没切换、在口令框里打了中文，用户看到的就是 500 错误页
+                typed = (request.form.get("password") or "").encode("utf-8")
+                if secrets.compare_digest(typed, Config.ACCESS_PASSWORD.encode("utf-8")):
                     session["dzt_ok"] = True
                     return redirect("/")
+                login_limiter.record(ip)
                 error = "口令不正确"
             return render_template("login.html", error=error)
 
@@ -123,18 +160,31 @@ def create_app():
         limit_mb = Config.MAX_CONTENT_LENGTH // (1024 * 1024)
         return jsonify({"error": "文件太大，请压缩到 %dMB 以内" % limit_mb}), 413
 
+    def _wants_json():
+        # 前端所有接口都在 /api/ 下；其余路径是用户在浏览器里直接打开的页面
+        return request.path.startswith("/api/")
+
+    @app.errorhandler(404)
+    def not_found(e):
+        if _wants_json():
+            return jsonify({"error": "接口不存在"}), 404
+        return render_template("error.html", code=404, title="页面不存在",
+                               message="这个地址没有对应的页面，可能是链接输错了，或者页面已被移走。"), 404
+
     @app.errorhandler(500)
     def internal_error(e):
         logger.exception("未处理的服务端异常")
-        return jsonify({"error": "服务器内部错误，请重试或查看控制台日志"}), 500
+        if _wants_json():
+            return jsonify({"error": "服务器内部错误，请重试或查看控制台日志"}), 500
+        return render_template("error.html", code=500, title="服务器出错了",
+                               message="处理请求时出了问题，已记录到控制台日志。请返回首页重试。"), 500
 
     # ---- Rate-limit middleware ----
     @app.before_request
     def check_rate_limit():
         # Only limit API endpoints; GET 是廉价查询，不限流（避免聊天界面切会话时误触限流）
         if request.path.startswith("/api/") and request.method != "GET":
-            ip = request.remote_addr or "127.0.0.1"
-            if not limiter.is_allowed(ip):
+            if not limiter.is_allowed(client_ip()):
                 return jsonify({"error": "请求过于频繁，请稍后再试"}), 429
 
     # ---- Periodic rate-limiter cleanup ----
@@ -142,6 +192,7 @@ def create_app():
         while True:
             time.sleep(300)
             limiter.cleanup()
+            login_limiter.cleanup()
 
     cleanup_thread = threading.Thread(target=cleanup_loop, daemon=True)
     cleanup_thread.start()
@@ -158,7 +209,28 @@ def create_app():
                 return int(os.path.getmtime(full))
             except OSError:
                 return 0
-        return {"asset_v": asset_v, "edition": Config.EDITION}
+        return {
+            "asset_v": asset_v,
+            "edition": Config.EDITION,
+            "app_version": VERSION,
+            "release_date": RELEASE_DATE,
+            "changelog": CHANGELOG,
+        }
+
+    # ---- 版本与探活 ----
+    @app.route("/healthz")
+    def healthz():
+        return jsonify({"status": "ok", "product": PRODUCT_NAME, "version": VERSION})
+
+    @app.route("/api/version")
+    def api_version():
+        return jsonify({
+            "product": PRODUCT_NAME,
+            "version": VERSION,
+            "release_date": RELEASE_DATE,
+            "edition": Config.EDITION,
+            "changelog": CHANGELOG,
+        })
 
     return app
 

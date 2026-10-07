@@ -64,7 +64,8 @@ class Config:
     SECRET_KEY = os.environ.get("DZT_SECRET_KEY", "")
 
     # ---- Database ----
-    DB_PATH = os.path.join(BASE_DIR, "history.db")
+    # DZT_DB_PATH 可指向另一份库（例如拍演示素材时用副本，不碰真实数据）
+    DB_PATH = os.environ.get("DZT_DB_PATH") or os.path.join(BASE_DIR, "history.db")
 
     # ---- Font ----
     FONT_PATH = os.path.join(BASE_DIR, "fonts")
